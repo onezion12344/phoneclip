@@ -6,16 +6,22 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Toast;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 
-/** Share-sheet entry: send a picture to the Mac without waiting for the camera watcher. */
+/** Share-sheet entry: images go to the clipboard as pictures, other files as files. */
 public class ShareActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         Intent intent = getIntent();
-        Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
-        if (uri == null) {
+        ArrayList<Uri> uris = new ArrayList<>();
+        if (Intent.ACTION_SEND_MULTIPLE.equals(intent.getAction())) {
+            ArrayList<Uri> list = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (list != null) uris.addAll(list);
+        } else {
+            Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (uri != null) uris.add(uri);
+        }
+        if (uris.isEmpty()) {
             finish();
             return;
         }
@@ -28,17 +34,30 @@ public class ShareActivity extends Activity {
         toast("Sending to Mac…");
         new Thread(() -> {
             try {
-                byte[] jpeg = Media.jpegFromUri(this, uri, 2560, 90);
-                String name = URLEncoder.encode("share.jpg", StandardCharsets.UTF_8.name());
-                Http.post(server + "/v1/photo?name=" + name,
-                        Config.token(this), "image/jpeg", jpeg);
-                runOnUiThread(() -> toast("Sent to Mac"));
+                send(uris);
+                runOnUiThread(() -> toast(uris.size() == 1 ? "Sent to Mac" : "Sent " + uris.size() + " files"));
             } catch (Exception e) {
-                runOnUiThread(() -> toast("Failed: " + e.getClass().getSimpleName()));
+                String msg = e.getClass().getSimpleName();
+                runOnUiThread(() -> toast("Failed: " + msg));
             } finally {
                 runOnUiThread(this::finish);
             }
         }, "share-upload").start();
+    }
+
+    private void send(ArrayList<Uri> uris) throws Exception {
+        if (uris.size() == 1 && ClipService.isImageUri(this, uris.get(0))) {
+            byte[] jpeg = Media.jpegFromUri(this, uris.get(0), 2560, 90);
+            Http.post(Config.server(this) + "/v1/photo?name=share.jpg",
+                    Config.token(this), "image/jpeg", jpeg);
+            return;
+        }
+        String batch = "b" + System.currentTimeMillis();
+        for (int i = 0; i < uris.size(); i++) {
+            Uri uri = uris.get(i);
+            String name = ClipService.displayName(this, uri);
+            ClipService.uploadUri(this, uri, name, batch, i, uris.size());
+        }
     }
 
     private void toast(String s) {

@@ -40,6 +40,14 @@ final class Config {
         prefs(c).edit().putLong("lastPhoto", seconds).apply();
     }
 
+    static String scope(Context c) {
+        return prefs(c).getString("scope", "all");
+    }
+
+    static void setScope(Context c, String scope) {
+        prefs(c).edit().putString("scope", scope).apply();
+    }
+
     private static String clean(String s) {
         return s == null ? "" : s.trim();
     }

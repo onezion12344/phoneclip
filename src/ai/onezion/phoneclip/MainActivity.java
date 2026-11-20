@@ -14,6 +14,7 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -106,6 +107,26 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(this, SendClipActivity.class))));
         root.addView(button("Check for updates", v -> checkUpdates()));
 
+        CheckBox allPhotos = new CheckBox(this);
+        allPhotos.setText("Auto-sync all photos (not only DCIM/Camera)");
+        allPhotos.setTextColor(Color.WHITE);
+        allPhotos.setChecked("all".equals(Config.scope(this)));
+        allPhotos.setOnCheckedChangeListener((v, checked) -> {
+            Config.setScope(this, checked ? "all" : "camera");
+            Config.setLastPhotoTime(this, System.currentTimeMillis() / 1000L);
+            statusView.setText(checked ? "Scope: all photos" : "Scope: camera folder only");
+        });
+        root.addView(allPhotos);
+
+        final EditText compose = new EditText(this);
+        compose.setHint("Paste or type text here, then send");
+        compose.setMinLines(2);
+        compose.setMaxLines(6);
+        compose.setTextColor(Color.WHITE);
+        compose.setHintTextColor(Color.rgb(120, 128, 144));
+        root.addView(compose);
+        root.addView(button("Send this text to Mac", v -> sendComposedText(compose)));
+
         statusView = new TextView(this);
         statusView.setTextColor(Color.rgb(120, 220, 180));
         statusView.setPadding(0, pad, 0, 0);
@@ -165,6 +186,28 @@ public class MainActivity extends Activity {
         boolean running = Config.enabled(this);
         statusView.setText((running ? "Running" : "Stopped")
                 + " · photos auto-sync; clipboard via the “发送剪贴板” tile");
+    }
+
+    private void sendComposedText(EditText field) {
+        String text = field.getText().toString();
+        if (text.isEmpty()) {
+            toast("Nothing to send");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                Http.post(Config.server(this) + "/v1/clip?kind=text", Config.token(this),
+                        "text/plain; charset=utf-8",
+                        text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                runOnUiThread(() -> {
+                    field.setText("");
+                    statusView.setText("Text sent (" + text.length() + " ch)");
+                });
+            } catch (Exception e) {
+                String msg = e.getClass().getSimpleName();
+                runOnUiThread(() -> statusView.setText("Send failed: " + msg));
+            }
+        }, "send-text").start();
     }
 
     private void checkUpdates() {

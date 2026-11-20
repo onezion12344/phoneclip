@@ -36,6 +36,8 @@ case "read":
     var out: [String: Any] = ["changeCount": pb.changeCount]
     if let types = pb.types, types.contains(concealed) {
         out["kind"] = ""
+    } else if let types = pb.types, types.contains(.fileURL) {
+        out["kind"] = "file"
     } else if let data = pngData(pb) {
         let path = args.count > 2 ? args[2] : "/tmp/phoneclip_clip.png"
         do {
@@ -72,6 +74,13 @@ case "write-image":
     pb.declareTypes([.png, .tiff], owner: nil)
     if let png { pb.setData(png, forType: .png) }
     pb.setData(tiff, forType: .tiff)
+    print(pb.changeCount)
+
+case "write-files":
+    let urls = args.dropFirst(2).map { URL(fileURLWithPath: $0) as NSURL }
+    guard !urls.isEmpty else { exit(2) }
+    pb.clearContents()
+    pb.writeObjects(urls)
     print(pb.changeCount)
 
 default:

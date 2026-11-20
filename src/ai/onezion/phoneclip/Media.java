@@ -17,16 +17,20 @@ final class Media {
         String name;
     }
 
-    static Photo newestCameraPhoto(Context ctx, long minDateAdded) {
+    static Photo newestPhoto(Context ctx, long minDateAdded, boolean allAlbums) {
         Uri base = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
         String[] projection = {
                 MediaStore.Images.Media._ID,
                 MediaStore.Images.Media.DATE_ADDED,
                 MediaStore.Images.Media.DISPLAY_NAME,
         };
-        String selection = MediaStore.Images.Media.RELATIVE_PATH + " LIKE ? AND "
-                + MediaStore.Images.Media.DATE_ADDED + " > ?";
-        String[] args = { "DCIM/Camera%", String.valueOf(minDateAdded) };
+        String selection = MediaStore.Images.Media.DATE_ADDED + " > ?";
+        String[] args = { String.valueOf(minDateAdded) };
+        if (!allAlbums) {
+            selection = MediaStore.Images.Media.RELATIVE_PATH + " LIKE ? AND "
+                    + MediaStore.Images.Media.DATE_ADDED + " > ?";
+            args = new String[] { "DCIM/Camera%", String.valueOf(minDateAdded) };
+        }
         String sort = MediaStore.Images.Media.DATE_ADDED + " DESC";
         try (android.database.Cursor c = ctx.getContentResolver().query(
                 base, projection, selection, args, sort)) {

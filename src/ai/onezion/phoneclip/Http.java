@@ -61,6 +61,31 @@ final class Http {
         }
     }
 
+    static void postStream(String url, String token, String contentType,
+                           InputStream in, long length) throws IOException {
+        HttpURLConnection c = open(url, token, "POST");
+        try {
+            c.setDoOutput(true);
+            if (length > 0) c.setFixedLengthStreamingMode(length);
+            else c.setChunkedStreamingMode(65536);
+            c.setRequestProperty("Content-Type", contentType);
+            try (OutputStream out = c.getOutputStream()) {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            } finally {
+                in.close();
+            }
+            int code = c.getResponseCode();
+            if (code >= 400) {
+                throw new IOException("HTTP " + code + ": "
+                        + new String(readAll(c.getErrorStream()), StandardCharsets.UTF_8));
+            }
+        } finally {
+            c.disconnect();
+        }
+    }
+
     private static HttpURLConnection open(String url, String token, String method) throws IOException {
         return open(url, token, method, TIMEOUT_MS);
     }

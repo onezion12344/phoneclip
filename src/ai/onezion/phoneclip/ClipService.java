@@ -156,7 +156,8 @@ public class ClipService extends Service {
         String server = Config.server(this);
         if (server.isEmpty()) return;
         long since = force ? 0 : Config.lastPhotoTime(this);
-        Media.Photo p = Media.newestCameraPhoto(this, since);
+        boolean all = force || "all".equals(Config.scope(this));
+        Media.Photo p = Media.newestPhoto(this, since, all);
         if (p == null) return;
         try {
             byte[] jpeg = Media.jpegFromUri(this, p.uri, 2560, 90);
@@ -314,11 +315,53 @@ public class ClipService extends Service {
             return "已发送图片 " + (jpeg.length / 1024) + " KB";
         }
         CharSequence text = item.getText();
-        if (text == null || text.length() == 0) return "剪贴板里没有文字";
+        if (text == null || text.length() == 0) {
+            if (uri != null) {
+                String name = displayName(ctx, uri);
+                uploadUri(ctx, uri, name, null, 0, 1);
+                return "已发送文件 " + name;
+            }
+            return "剪贴板里没有文字";
+        }
         byte[] body = text.toString().getBytes(StandardCharsets.UTF_8);
         Http.post(server + "/v1/clip?kind=text", Config.token(ctx),
                 "text/plain; charset=utf-8", body);
         return "已发送文字 " + text.length() + " 字";
+    }
+
+    static String displayName(Context ctx, Uri uri) {
+        String name = null;
+        try (android.database.Cursor c = ctx.getContentResolver().query(uri,
+                new String[] { android.provider.OpenableColumns.DISPLAY_NAME }, null, null, null)) {
+            if (c != null && c.moveToFirst()) name = c.getString(0);
+        } catch (Exception ignored) {}
+        if (name == null || name.isEmpty()) {
+            name = uri.getLastPathSegment();
+        }
+        if (name == null || name.isEmpty()) name = "file";
+        return name.replace('/', '_');
+    }
+
+    static String mimeOf(Context ctx, Uri uri) {
+        String t = ctx.getContentResolver().getType(uri);
+        return t == null ? "application/octet-stream" : t;
+    }
+
+    static void uploadUri(Context ctx, Uri uri, String name, String batch,
+                          int index, int total) throws Exception {
+        String url = Config.server(ctx) + "/v1/file?name="
+                + URLEncoder.encode(name, StandardCharsets.UTF_8.name());
+        if (batch != null) {
+            url += "&batch=" + URLEncoder.encode(batch, "UTF-8") + "&i=" + index + "&n=" + total;
+        }
+        long len = -1;
+        try (android.content.res.AssetFileDescriptor afd =
+                     ctx.getContentResolver().openAssetFileDescriptor(uri, "r")) {
+            if (afd != null) len = afd.getLength();
+        } catch (Exception ignored) {}
+        java.io.InputStream in = ctx.getContentResolver().openInputStream(uri);
+        if (in == null) throw new java.io.IOException("no stream");
+        Http.postStream(url, Config.token(ctx), mimeOf(ctx, uri), in, len);
     }
 
     private void sendTest() {

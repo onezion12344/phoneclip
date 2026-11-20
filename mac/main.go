@@ -51,7 +51,17 @@ var (
 
 	waitMu   sync.Mutex
 	waitChan = make(chan struct{})
+
+	fileMu   sync.Mutex
+	fileDrop = filepath.Join(home(), "Downloads", "PhoneClip")
+	batches  = map[string]*fileBatch{}
 )
+
+type fileBatch struct {
+	paths []string
+	total int
+	got   int
+}
 
 // signalClip wakes every long-poll holding on GET /v1/clip.
 func signalClip() {
@@ -199,6 +209,7 @@ func routes() http.Handler {
 		writeJSON(w, map[string]any{"ok": true})
 	}))
 	mux.HandleFunc("/v1/photo", auth(handlePhoto))
+	mux.HandleFunc("/v1/file", auth(handleFile))
 	mux.HandleFunc("/v1/clip", auth(handleClip))
 	mux.HandleFunc("/v1/clip/image", auth(handleClipImage))
 	return mux
@@ -350,6 +361,95 @@ func waitForRev(since int64, d time.Duration) bool {
 			return false
 		}
 	}
+}
+
+// ---- files -----------------------------------------------------------------
+
+func handleFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	q := r.URL.Query()
+	name := saneName(q.Get("name"))
+	if name == "" {
+		name = "file"
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 200<<20))
+	if err != nil || len(body) == 0 {
+		http.Error(w, "empty body", http.StatusBadRequest)
+		return
+	}
+	os.MkdirAll(fileDrop, 0o755)
+	path := uniquePath(filepath.Join(fileDrop, name))
+	if err := os.WriteFile(path, body, 0o644); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	batch := q.Get("batch")
+	total, _ := strconv.Atoi(q.Get("n"))
+	idx, _ := strconv.Atoi(q.Get("i"))
+	if batch == "" || total <= 1 {
+		setFilesClip([]string{path})
+		log.Printf("file %s (%d KB) → clipboard", path, len(body)/1024)
+		notify("文件已从手机复制", name)
+		w.Write([]byte("ok"))
+		return
+	}
+
+	fileMu.Lock()
+	b := batches[batch]
+	if b == nil {
+		b = &fileBatch{total: total}
+		batches[batch] = b
+	}
+	b.got++
+	for len(b.paths) <= idx {
+		b.paths = append(b.paths, "")
+	}
+	b.paths[idx] = path
+	complete := b.got >= b.total
+	var paths []string
+	if complete {
+		paths = b.paths
+		delete(batches, batch)
+	}
+	fileMu.Unlock()
+
+	if complete {
+		setFilesClip(paths)
+		log.Printf("files (%d) → clipboard", len(paths))
+		notify("文件已从手机复制", fmt.Sprintf("%d 个", len(paths)))
+	}
+	w.Write([]byte("ok"))
+}
+
+func uniquePath(path string) string {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return path
+	}
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(path, ext)
+	for i := 1; i < 1000; i++ {
+		p := fmt.Sprintf("%s-%d%s", base, i, ext)
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			return p
+		}
+	}
+	return path
+}
+
+func setFilesClip(paths []string) error {
+	args := append([]string{"write-files"}, paths...)
+	out, err := exec.Command(helper, args...).Output()
+	if err != nil {
+		return err
+	}
+	count, _ := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+	atomic.StoreInt64(&ignoreCount, count)
+	noteOwnWrite("file", "", "")
+	return nil
 }
 
 func handleClipImage(w http.ResponseWriter, r *http.Request) {
