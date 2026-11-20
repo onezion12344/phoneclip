@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 
 public class ClipService extends Service {
     private static final String TAG = "PhoneClip";
@@ -113,6 +114,14 @@ public class ClipService extends Service {
         if ("test".equals(action)) bg.post(this::sendTest);
         if ("push".equals(action)) bg.post(this::pushLocalClipQuietly);
         if ("update".equals(action)) bg.post(this::checkUpdate);
+        if ("sharetest".equals(action)) bg.post(this::shareTest);
+        if ("offer".equals(action)) {
+            ArrayList<String> paths = intent.getStringArrayListExtra("paths");
+            ArrayList<String> mimes = intent.getStringArrayListExtra("mimes");
+            if (paths != null && !paths.isEmpty()) {
+                bg.post(() -> offer(paths, mimes));
+            }
+        }
         if ("copy".equals(action)) {
             String text = intent.getStringExtra("text");
             if (text != null) bg.post(() -> {
@@ -291,6 +300,23 @@ public class ClipService extends Service {
 
     // ---- helpers -----------------------------------------------------------
 
+    private void shareTest() {
+        try {
+            Media.Photo p = Media.newestPhoto(this, 0, true);
+            if (p == null) {
+                note("share test: no photo");
+                return;
+            }
+            ArrayList<Uri> uris = new ArrayList<>();
+            uris.add(p.uri);
+            ShareActivity.copyAndPublish(this, uris);
+            note("share test ok");
+        } catch (Exception e) {
+            Log.w(TAG, "share test", e);
+            note("share test failed: " + e.getClass().getSimpleName());
+        }
+    }
+
     static boolean isImageUri(Context ctx, Uri uri) {
         String type = ctx.getContentResolver().getType(uri);
         if (type != null && type.startsWith("image/")) return true;
@@ -362,6 +388,57 @@ public class ClipService extends Service {
         java.io.InputStream in = ctx.getContentResolver().openInputStream(uri);
         if (in == null) throw new java.io.IOException("no stream");
         Http.postStream(url, Config.token(ctx), mimeOf(ctx, uri), in, len);
+    }
+
+    /** Files already copied into our storage by ShareActivity. */
+    private void offer(ArrayList<String> paths, ArrayList<String> mimes) {
+        String server = Config.server(this);
+        if (server.isEmpty()) return;
+        try {
+            if (paths.size() == 1 && mimes != null && !mimes.isEmpty()
+                    && mimes.get(0).startsWith("image/")) {
+                File f = new File(paths.get(0));
+                byte[] jpeg = Media.jpegFromFile(f, 2560, 90);
+                String name = URLEncoder.encode(jpegName(stripStamp(f.getName())),
+                        StandardCharsets.UTF_8.name());
+                Http.post(server + "/v1/photo?name=" + name,
+                        Config.token(this), "image/jpeg", jpeg);
+                note("Photo → Mac (" + jpeg.length / 1024 + " KB)");
+                return;
+            }
+            String batch = "b" + System.currentTimeMillis();
+            for (int i = 0; i < paths.size(); i++) {
+                File f = new File(paths.get(i));
+                String mime = mimes != null && i < mimes.size()
+                        ? mimes.get(i) : "application/octet-stream";
+                uploadPath(this, f, mime, batch, i, paths.size());
+            }
+            note(paths.size() == 1 ? "File → Mac" : "Files → Mac (" + paths.size() + ")");
+        } catch (Exception e) {
+            Log.w(TAG, "offer", e);
+            note("Send failed: " + e.getClass().getSimpleName());
+        }
+    }
+
+    static void uploadPath(Context ctx, File file, String mime, String batch,
+                           int index, int total) throws Exception {
+        String name = URLEncoder.encode(stripStamp(file.getName()),
+                StandardCharsets.UTF_8.name());
+        String url = Config.server(ctx) + "/v1/file?name=" + name
+                + "&batch=" + URLEncoder.encode(batch, "UTF-8")
+                + "&i=" + index + "&n=" + total;
+        java.io.InputStream in = new java.io.FileInputStream(file);
+        Http.postStream(url, Config.token(ctx), mime, in, file.length());
+    }
+
+    private static String stripStamp(String name) {
+        int dash = name.indexOf('-');
+        if (dash < 0) return name;
+        int dash2 = name.indexOf('-', dash + 1);
+        if (dash2 < 0) return name;
+        String head = name.substring(0, dash);
+        if (head.isEmpty() || !head.matches("\\d+")) return name;
+        return name.substring(dash2 + 1);
     }
 
     private void sendTest() {

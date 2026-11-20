@@ -1,15 +1,27 @@
 package ai.onezion.phoneclip;
 
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipDescription;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 
-/** Share-sheet entry: images go to the clipboard as pictures, other files as files. */
+/**
+ * Share target: copy the shared file(s) into our own storage, put OUR content
+ * URI on the phone clipboard (so any app can paste), and hand the same files to
+ * the service for upload to the Mac.
+ */
 public class ShareActivity extends Activity {
+    private static final long MAX_TOTAL = 200L * 1024 * 1024;
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         Intent intent = getIntent();
@@ -25,39 +37,92 @@ public class ShareActivity extends Activity {
             finish();
             return;
         }
-        String server = Config.server(this);
-        if (server.isEmpty()) {
-            toast("Set up the bridge first");
-            finish();
-            return;
-        }
-        toast("Sending to Mac…");
+        toast("Copying…");
         new Thread(() -> {
             try {
-                send(uris);
-                runOnUiThread(() -> toast(uris.size() == 1 ? "Sent to Mac" : "Sent " + uris.size() + " files"));
+                copyAndPublish(this, uris);
+                runOnUiThread(() -> {
+                    toast(uris.size() == 1
+                            ? "已复制到手机剪贴板 · 正在发往 Mac"
+                            : "已复制 " + uris.size() + " 个文件 · 正在发往 Mac");
+                    finish();
+                });
             } catch (Exception e) {
-                String msg = e.getClass().getSimpleName();
-                runOnUiThread(() -> toast("Failed: " + msg));
-            } finally {
-                runOnUiThread(this::finish);
+                String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                runOnUiThread(() -> {
+                    toast("Failed: " + msg);
+                    finish();
+                });
             }
-        }, "share-upload").start();
+        }, "share").start();
     }
 
-    private void send(ArrayList<Uri> uris) throws Exception {
-        if (uris.size() == 1 && ClipService.isImageUri(this, uris.get(0))) {
-            byte[] jpeg = Media.jpegFromUri(this, uris.get(0), 2560, 90);
-            Http.post(Config.server(this) + "/v1/photo?name=share.jpg",
-                    Config.token(this), "image/jpeg", jpeg);
-            return;
-        }
-        String batch = "b" + System.currentTimeMillis();
+    /** Copy into our storage (so the URI grant survives), set the phone clipboard, upload. */
+    static void copyAndPublish(android.content.Context ctx, ArrayList<Uri> uris) throws Exception {
+        java.io.File dir = new java.io.File(ctx.getFilesDir(), "share");
+        dir.mkdirs();
+        prune(dir);
+
+        String stamp = String.valueOf(System.currentTimeMillis());
+        ArrayList<String> paths = new ArrayList<>();
+        ArrayList<String> mimes = new ArrayList<>();
+        long total = 0;
+
         for (int i = 0; i < uris.size(); i++) {
             Uri uri = uris.get(i);
-            String name = ClipService.displayName(this, uri);
-            ClipService.uploadUri(this, uri, name, batch, i, uris.size());
+            String name = ClipService.displayName(ctx, uri);
+            String mime = ClipService.mimeOf(ctx, uri);
+            String stored = stamp + "-" + i + "-" + name;
+            java.io.File dst = new java.io.File(dir, stored);
+            try (InputStream in = ctx.getContentResolver().openInputStream(uri);
+                 FileOutputStream out = new FileOutputStream(dst)) {
+                if (in == null) throw new java.io.IOException("no stream for " + name);
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    total += n;
+                    if (total > MAX_TOTAL) {
+                        dst.delete();
+                        throw new java.io.IOException("超过 200 MB 上限");
+                    }
+                    out.write(buf, 0, n);
+                }
+            }
+            paths.add(dst.getAbsolutePath());
+            mimes.add(mime);
         }
+
+        Uri first = Uri.parse("content://" + ClipProvider.AUTHORITY + "/share/"
+                + new java.io.File(paths.get(0)).getName());
+        ClipData clip;
+        if (paths.size() == 1) {
+            clip = ClipData.newUri(ctx.getContentResolver(), "PhoneClip", first);
+        } else {
+            String[] types = mimes.toArray(new String[0]);
+            clip = new ClipData(new ClipDescription("PhoneClip", types),
+                    new ClipData.Item(first));
+            for (int i = 1; i < paths.size(); i++) {
+                clip.addItem(new ClipData.Item(Uri.parse("content://" + ClipProvider.AUTHORITY
+                        + "/share/" + new java.io.File(paths.get(i)).getName())));
+            }
+        }
+        ClipboardManager cm = (ClipboardManager) ctx.getSystemService(ctx.CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(clip);
+        android.util.Log.i("PhoneClip", "clip set: " + clip.getItemCount() + " item(s)");
+
+        Intent svc = new Intent(ctx, ClipService.class);
+        svc.putExtra("action", "offer");
+        svc.putStringArrayListExtra("paths", paths);
+        svc.putStringArrayListExtra("mimes", mimes);
+        ctx.startForegroundService(svc);
+    }
+
+    /** Keep only the most recent shares; older clipboard files are unlikely to be pasted. */
+    private static void prune(java.io.File dir) {
+        java.io.File[] files = dir.listFiles();
+        if (files == null || files.length < 12) return;
+        java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        for (int i = 8; i < files.length; i++) files[i].delete();
     }
 
     private void toast(String s) {
