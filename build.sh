@@ -10,17 +10,12 @@ OUT=${1:-"$PWD/build/PhoneClip.apk"}
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUILD="$HERE/build"
 rm -rf "$BUILD"
-mkdir -p "$BUILD/compiled" "$BUILD/dex" "$BUILD/apk"
-
-echo "==> compiling java"
-find "$HERE/src" -name '*.java' > "$BUILD/sources.txt"
-javac --release 17 -classpath "$PLATFORM/android.jar" \
-  -d "$BUILD/compiled" @"$BUILD/sources.txt"
+mkdir -p "$BUILD/compiled" "$BUILD/dex" "$BUILD/apk" "$BUILD/gen"
 
 echo "==> packaging resources"
 "$BTools/aapt2" compile --dir "$HERE/res" -o "$BUILD/apk/res.zip"
 
-echo "==> linking resources"
+echo "==> linking resources (generates R.java)"
 "$BTools/aapt2" link \
   -o "$BUILD/apk/base.apk" \
   -I "$PLATFORM/android.jar" \
@@ -31,8 +26,13 @@ echo "==> linking resources"
   --target-sdk-version 36 \
   --auto-add-overlay
 
+echo "==> compiling java"
+find "$HERE/src" "$BUILD/gen" -name '*.java' > "$BUILD/sources.txt"
+javac --release 17 -classpath "$PLATFORM/android.jar" \
+  -d "$BUILD/compiled" @"$BUILD/sources.txt"
+
 echo "==> dexing"
-find "$BUILD/compiled" "$BUILD/gen" -name '*.class' > "$BUILD/classes.txt" 2>/dev/null || true
+find "$BUILD/compiled" -name '*.class' > "$BUILD/classes.txt"
 "$BTools/d8" @"$BUILD/classes.txt" --min-api 29 --output "$BUILD/dex"
 ( cd "$BUILD/dex" && zip -q "$BUILD/apk/base.apk" classes.dex )
 

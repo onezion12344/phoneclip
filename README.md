@@ -1,5 +1,7 @@
 # PhoneClip
 
+<img src="docs/icon.png" width="84" align="right" alt="PhoneClip icon">
+
 **手机拍的照片，自动出现在 Mac 剪贴板里。** 分享一个文件给 App，手机和 Mac 两端剪贴板同时拿到——不用微信文件传输助手，不压缩，不走第三方服务器。
 
 ![release](https://img.shields.io/github/v/release/onezion12344/phoneclip)
@@ -11,7 +13,7 @@
 | 能力 | 怎么用 | 说明 |
 |---|---|---|
 | 照片自动进 Mac 剪贴板 | 拍完就行 | 全相册监听（截图、微信保存图也算），1–3 秒到达；也可切回「仅相机」 |
-| 分享文件 → 双端剪贴板 | 系统分享菜单 → OneZion Clip | 手机剪贴板是文件本身，Mac 剪贴板也是文件；多选支持批量 |
+| 分享文件 → 双端剪贴板 | 系统分享菜单，或在 App 里点「选择文件 / 选择照片」 | 手机剪贴板是文件本身，Mac 剪贴板也是文件；多选支持批量 |
 | 发当前剪贴板 | 快捷设置磁贴「发送剪贴板」 | 文字/图片/文件都可以；Android 13+ 禁止后台读剪贴板，所以是点一下 |
 | 在 App 里打一段字发过去 | App 内文本框 | 粘贴长文、链接、验证码都行 |
 | 自动更新 | 无需操作 | 每 24h 检查 GitHub Release，弹通知，点一下安装 |
@@ -68,7 +70,7 @@ adb shell am start -n ai.onezion.phoneclip/.MainActivity \
 ## 使用
 
 - **拍照/截图** → 什么都不用做，Mac 右上角会弹「照片已从手机复制」；
-- **发文件** → 相册、文件管理器、微信里选「分享」→ OneZion Clip；
+- **发文件** → 相册、文件管理器、微信里选「分享」→ OneZion Clip；也可以直接在 App 里点「选择文件…」（任意格式）或「选择照片…」；
 - **发文字** → 复制后下拉点「发送剪贴板」磁贴，或在 App 文本框里输入；
 - **相册范围** → App 里勾选「Auto-sync all photos」；关掉则只同步 `DCIM/Camera`。
 
