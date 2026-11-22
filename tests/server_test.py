@@ -166,6 +166,23 @@ def main():
                     ctype="text/plain")
         check("oversized batch rejected", st == 400, st)
 
+        st, body = req("GET", "/v1/clip?rev=-1", token, timeout=5)
+        current_rev = json.loads(body).get("rev", 0) if st == 200 else 0
+        held = []
+        def hold():
+            try:
+                held.append(req("GET", f"/v1/clip?rev={current_rev}&wait=3", token, timeout=8)[0])
+            except Exception:
+                held.append(0)
+        threads = [threading.Thread(target=hold) for _ in range(32)]
+        for th in threads:
+            th.start()
+        time.sleep(0.6)
+        st, _ = req("GET", f"/v1/clip?rev={current_rev}&wait=1", token, timeout=5)
+        check("poller cap returns 429", st == 429, st)
+        for th in threads:
+            th.join()
+
         big = os.path.join(DOWNLOADS, "server-test-big.bin")
         if os.path.exists(big):
             os.remove(big)

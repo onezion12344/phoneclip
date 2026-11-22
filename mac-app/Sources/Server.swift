@@ -148,6 +148,10 @@ final class PhoneClipServer {
     }
 
     private func enqueue(op: String, path: String, completion: @escaping ([String: Any]) -> Void) {
+        if commands.count + inFlight.count >= 16 {
+            completion(["ok": false, "error": "busy"])
+            return
+        }
         let id = UUID().uuidString
         let timeout = DispatchWorkItem { [weak self] in
             guard let self, let c = self.inFlight.removeValue(forKey: id) else { return }
@@ -390,6 +394,10 @@ final class PhoneClipServer {
     private func logLine(_ line: String) {
         let path = "/tmp/phoneclip-requests.log"
         guard let data = (line + "\n").data(using: .utf8) else { return }
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+           let size = attrs[.size] as? Int, size > (5 << 20) {
+            try? FileManager.default.removeItem(atPath: path)
+        }
         if let h = FileHandle(forWritingAtPath: path) {
             h.seekToEndOfFile()
             h.write(data)
@@ -549,6 +557,10 @@ final class PhoneClipServer {
         var wait = Int(req.query["wait"] ?? "0") ?? 0
         if wait > 300 { wait = 300 }
         if wait > 0 && since >= rev && commands.isEmpty {
+            if waiters.count >= 32 {
+                respond(conn, status: 429, body: Data("too many pollers".utf8))
+                return
+            }
             let id = UUID()
             let timeout = DispatchWorkItem { [weak self] in
                 guard let self, let w = self.waiters[id] else { return }
@@ -629,6 +641,7 @@ final class PhoneClipServer {
         case 403: reason = "Forbidden"
         case 404: reason = "Not Found"
         case 413: reason = "Payload Too Large"
+        case 429: reason = "Too Many Requests"
         case 500: reason = "Internal Server Error"
         default: reason = "OK"
         }
