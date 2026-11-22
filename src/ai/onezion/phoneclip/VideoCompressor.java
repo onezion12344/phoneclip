@@ -62,7 +62,7 @@ final class VideoCompressor {
                 audio.selectTrack(aTrack);
                 ByteBuffer probe = ByteBuffer.allocateDirect(1 << 16);
                 if (audio.readSampleData(probe, 0) < 0) keepAudio = false;
-                audio.seekTo(0);
+                audio.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
             }
 
             int w = source.getInteger(MediaFormat.KEY_WIDTH);
