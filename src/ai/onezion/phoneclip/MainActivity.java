@@ -217,6 +217,12 @@ public class MainActivity extends Activity {
         row.addView(stop, half2);
         card.content.addView(row);
 
+        TextView adb = pill("无线 ADB（需 root）", false, v -> enableTcpip());
+        LinearLayout.LayoutParams adbLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        adbLp.topMargin = dp(14);
+        card.content.addView(adb, adbLp);
+
         TextView battery = text("允许后台运行（忽略电池优化）", 13, MUTED);
         battery.setPadding(dp(4), dp(14), dp(4), dp(2));
         battery.setOnClickListener(v -> {
@@ -615,6 +621,17 @@ public class MainActivity extends Activity {
         }
         if (uris.isEmpty()) return;
         Actions.choose(this, uris, () -> {});
+    }
+
+    private void enableTcpip() {
+        toast("检查 root 权限…");
+        new Thread(() -> {
+            if (!Adb.hasRoot()) {
+                toast("没有 root：请在开发者选项里打开「无线调试」");
+                return;
+            }
+            toast(Adb.enableTcpip());
+        }, "adb-root").start();
     }
 
     private void startBridge() {

@@ -422,6 +422,34 @@ final class PhoneClipServer {
         }
     }
 
+    /// Only loopback, Tailscale (100.64/10, fd7a:115c:a1e0::/48) and RFC1918 peers.
+    private func peerAllowed(_ conn: NWConnection) -> Bool {
+        guard case let .hostPort(host: h, port: _) = conn.endpoint else { return true }
+        switch h {
+        case .ipv4(let a): return Self.isPrivatePeer("\(a)")
+        case .ipv6(let a): return Self.isPrivatePeer("\(a)")
+        case .name(let n, _): return Self.isPrivatePeer(n)
+        @unknown default: return false
+        }
+    }
+
+    static func isPrivatePeer(_ raw: String) -> Bool {
+        var ip = raw.lowercased()
+        if ip.hasPrefix("::ffff:") { ip = String(ip.dropFirst(7)) }
+        if let pct = ip.firstIndex(of: "%") { ip = String(ip[ip.startIndex..<pct]) }
+        if ip == "::1" || ip.hasPrefix("127.") { return true }
+        let o = ip.split(separator: ".").compactMap { Int($0) }
+        if o.count == 4 {
+            if o[0] == 10 { return true }
+            if o[0] == 192 && o[1] == 168 { return true }
+            if o[0] == 172 && (16...31).contains(o[1]) { return true }
+            if o[0] == 100 && (64...127).contains(o[1]) { return true }
+            return false
+        }
+        if ip.hasPrefix("fe80:") || ip.hasPrefix("fd7a:115c:a1e0:") { return true }
+        return false
+    }
+
     private func authorized(_ req: HTTPRequest) -> Bool {
         let h = req.headers["x-phoneclip-token"] ?? ""
         let q = req.query["token"] ?? ""
@@ -430,6 +458,10 @@ final class PhoneClipServer {
 
     private func dispatch(_ req: HTTPRequest, _ conn: NWConnection) {
         logLine("\(req.method) \(req.path) from \(conn.endpoint)")
+        guard peerAllowed(conn) else {
+            respond(conn, status: 403, body: Data("forbidden network".utf8))
+            return
+        }
         guard authorized(req) else {
             respond(conn, status: 403, body: Data("forbidden".utf8))
             return

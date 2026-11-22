@@ -27,11 +27,15 @@ owner 目标：先把「连接侧」打通，并具备一些 ADB 能力。
 - 设备差异：Ace 3 Pro（PJX110，未 root）只能靠无线调试/USB；
   OnePlus Open（CPH2551，已 root）可以由 App 通过 `su` 持久化 `persist.adb.tcp.port`。
 
-候选实现（待设备可达后做）：
+已做（1.4.19）：
 
-1. `AdbHelper`：检测 root；有 root 时提供「开启无线 ADB / 固定 5555」，无 root 时给出手动步骤。
-2. Mac 端「连接手机」按钮：自动 `adb connect`（Tailscale 地址），失败时提示配对。
-3. 无线调试配对引导页（把 IP:端口、六位码的获取步骤内置到 App）。
+1. `Adb`：检测 root；有 root 时一键设置 `persist.adb.tcp.port=5555` 并重启 adbd；无 root 时提示改用「无线调试」。
+2. Mac 端来源白名单：只接受回环、Tailscale（100.64/10、fd7a:115c:a1e0::/48）与 RFC1918 私有网段，其余一律 403。
+
+待设备可达后做：
+
+3. Mac 端「连接手机」按钮：自动 `adb connect`（Tailscale 地址），失败时提示配对。
+4. 无线调试配对引导页（把 IP:端口、六位码的获取步骤内置到 App）。
 
 ## 未来功能（已记录，暂不实现）
 
