@@ -249,7 +249,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 let bundleID = Bundle.main.bundleIdentifier ?? ""
-if !bundleID.isEmpty,
+let allowMulti = CommandLine.arguments.contains("--allow-multi")
+if !allowMulti, !bundleID.isEmpty,
    NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1 {
     exit(0)
 }

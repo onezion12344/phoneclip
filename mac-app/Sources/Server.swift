@@ -551,18 +551,23 @@ final class PhoneClipServer {
 
     private func respondStateOrCommand(_ conn: NWConnection, since: Int64 = -1) {
         var obj: [String: Any] = ["rev": rev, "kind": kind]
-        let fresh = since < rev && kind != ""
+        let stale = since > rev
+        let fresh = !stale && since < rev && kind != ""
         if fresh {
             if kind == "text" { obj["text"] = text }
             if kind == "image" { obj["url"] = "/v1/clip/image?rev=\(rev)" }
         } else {
             obj["kind"] = ""
         }
+        if stale {
+            // the client's rev came from a previous process; make it reset
+            obj["reset"] = true
+        }
         if !commands.isEmpty {
             let c = commands.removeFirst()
             obj["cmd"] = ["id": c.id, "op": c.op, "path": c.path]
         }
-        if !fresh && obj["cmd"] == nil {
+        if !fresh && !stale && obj["cmd"] == nil {
             respond(conn, status: 204, body: Data())
             return
         }

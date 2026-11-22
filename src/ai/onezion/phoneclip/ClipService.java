@@ -298,6 +298,7 @@ public class ClipService extends Service {
     private void applyRemote(String body) throws Exception {
         JSONObject o = new JSONObject(body);
         long rev = o.getLong("rev");
+        boolean reset = o.optBoolean("reset", false);
         String kind = o.optString("kind", "");
         if ("text".equals(kind)) {
             String text = o.optString("text", "");
@@ -307,8 +308,8 @@ public class ClipService extends Service {
             byte[] png = Http.getBytes(server + o.getString("url"), Config.token(this));
             setImageClip(png);
         }
-        lastRev = rev;
-        Config.setLastRev(this, rev);
+        lastRev = reset ? -1 : rev;
+        Config.setLastRev(this, lastRev);
 
         JSONObject cmd = o.optJSONObject("cmd");
         if (cmd != null) {
