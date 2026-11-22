@@ -109,7 +109,7 @@ rm -f "$TDIR"/*-pc_test.m4a.txt "$TDIR/pc_test.m4a.txt"
   --es action transcribetest --es path /sdcard/Download/pc_test.m4a >/dev/null
 TRANSCRIPT=""
 for i in $(seq 1 30); do
-  TRANSCRIPT=$(ls -t "$TDIR"/*-pc_test.m4a.txt 2>/dev/null | head -1)
+  TRANSCRIPT=$(ls -t "$TDIR"/*-pc_test.m4a.txt 2>/dev/null | head -1 || true)
   [ -n "$TRANSCRIPT" ] && break
   sleep 1
 done
@@ -129,7 +129,7 @@ for i in $(seq 1 120); do
 done
 if [ -f "$HOME/Downloads/PhoneClip/pc_test-720p.mp4" ]; then
   W=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 \
-      "$HOME/Downloads/PhoneClip/pc_test-720p.mp4" | head -1)
+      "$HOME/Downloads/PhoneClip/pc_test-720p.mp4" | head -1 || true)
   [ "$W" = "1280" ] && ok "compressed width=$W" || no "compressed width=$W"
 else
   no "compression output missing"
@@ -145,7 +145,7 @@ for i in $(seq 1 60); do
 done
 if [ -f "$HOME/Downloads/PhoneClip/pc_test-96k.m4a" ]; then
   BR=$(ffprobe -v error -select_streams a:0 -show_entries stream=bit_rate -of csv=p=0 \
-       "$HOME/Downloads/PhoneClip/pc_test-96k.m4a" | head -1)
+       "$HOME/Downloads/PhoneClip/pc_test-96k.m4a" | head -1 || true)
   [ -n "$BR" ] && [ "$BR" -le 120000 ] && ok "audio bitrate=$BR" || no "audio bitrate=$BR"
 else
   no "audio compression output missing"
