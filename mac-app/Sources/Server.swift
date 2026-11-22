@@ -400,6 +400,11 @@ final class PhoneClipServer {
             listPhone(path: path) { [weak self] res in
                 self?.respondJSON(conn, res)
             }
+        case ("GET", "/v1/sidecar/get"):
+            let path = req.query["path"] ?? ""
+            fetchPhone(path: path) { [weak self] res in
+                self?.respondJSON(conn, res)
+            }
         default:
             respond(conn, status: 404, body: Data())
         }

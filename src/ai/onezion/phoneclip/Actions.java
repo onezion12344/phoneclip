@@ -3,7 +3,10 @@ package ai.onezion.phoneclip;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import java.io.File;
@@ -13,107 +16,112 @@ import java.util.ArrayList;
 
 /** Shared action chooser used by the share sheet and the in-app pickers. */
 final class Actions {
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+
     static void choose(Activity a, ArrayList<Uri> uris, Runnable onDone) {
         if (uris.isEmpty()) {
             onDone.run();
             return;
         }
+        final Context app = a.getApplicationContext();
         String mime = a.getContentResolver().getType(uris.get(0));
         boolean media = mime != null && (mime.startsWith("audio/") || mime.startsWith("video/"));
         if (!media) {
-            send(a, uris);
+            send(app, uris);
             onDone.run();
             return;
         }
-        String[] items = {
-                "发送到 Mac",
-                "只保留音频",
-                Config.tSync(a) ? "转写（并同步文本到 Mac）" : "转写",
-        };
+
+        String transcribe = Config.tSync(app) ? "转写（并同步文本到 Mac）" : "转写";
+        ArrayList<String> items = new ArrayList<>();
+        items.add("发送到 Mac");
+        items.add("只保留音频");
         boolean video = mime.startsWith("video/");
-        String[] withCompress = video ? new String[] {
-                items[0], items[1], "压缩到 720p 并发送", items[2]
-        } : items;
-        AlertDialog dialog = new AlertDialog.Builder(a)
+        if (video) items.add("压缩到 720p 并发送");
+        items.add(transcribe);
+
+        AlertDialog dialog = new AlertDialog.Builder(
+                a, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("要做什么？")
-                .setItems(withCompress, (d, which) -> {
-                    if (which == 0) send(a, uris);
-                    else if (which == 1) audioOnly(a, uris.get(0), mime);
-                    else if (video && which == 2) compress(a, uris.get(0));
-                    else transcribe(a, uris.get(0), mime);
+                .setItems(items.toArray(new String[0]), (d, which) -> {
+                    String label = items.get(which);
+                    if (label.equals("发送到 Mac")) send(app, uris);
+                    else if (label.equals("只保留音频")) audioOnly(app, uris.get(0), mime);
+                    else if (label.startsWith("压缩")) compress(app, uris.get(0));
+                    else transcribe(app, uris.get(0), mime);
                 })
                 .create();
         dialog.setOnDismissListener(d -> onDone.run());
         dialog.show();
     }
 
-    private static void send(Activity a, ArrayList<Uri> uris) {
-        toast(a, "正在复制…");
+    private static void send(Context c, ArrayList<Uri> uris) {
+        toast(c, "正在复制…");
         new Thread(() -> {
             try {
-                ShareActivity.copyAndPublish(a, uris);
-                toast(a, uris.size() == 1 ? "已复制到手机 + Mac" : "已复制 " + uris.size() + " 个文件");
+                ShareActivity.copyAndPublish(c, uris);
+                toast(c, uris.size() == 1 ? "已复制到手机 + Mac" : "已复制 " + uris.size() + " 个文件");
             } catch (Exception e) {
-                toast(a, "失败：" + msg(e));
+                toast(c, "失败：" + msg(e));
             }
         }, "action-send").start();
     }
 
-    private static void audioOnly(Activity a, Uri uri, String mime) {
+    private static void audioOnly(Context c, Uri uri, String mime) {
         ArrayList<Uri> one = new ArrayList<>();
         one.add(uri);
         if (!mime.startsWith("video/")) {
-            send(a, one);
+            send(c, one);
             return;
         }
-        toast(a, "正在提取音轨…");
+        toast(c, "正在提取音轨…");
         new Thread(() -> {
             try {
-                File m4a = Media.extractAudio(a, uri, baseName(a, uri));
+                File m4a = Media.extractAudio(c, uri, baseName(c, uri));
                 ArrayList<Uri> out = new ArrayList<>();
                 out.add(Uri.fromFile(m4a));
-                ShareActivity.copyAndPublish(a, out);
-                toast(a, "已提取音频并发送");
+                ShareActivity.copyAndPublish(c, out);
+                toast(c, "已提取音频并发送");
             } catch (Exception e) {
-                toast(a, "失败：" + msg(e));
+                toast(c, "失败：" + msg(e));
             }
         }, "action-audio").start();
     }
 
-    private static void compress(Activity a, Uri uri) {
-        toast(a, "正在压缩到 720p（长视频需要几分钟）…");
-        android.content.Intent i = new android.content.Intent(a, ClipService.class);
+    private static void compress(Context c, Uri uri) {
+        toast(c, "正在压缩到 720p（长视频需要几分钟）…");
+        Intent i = new Intent(c, ClipService.class);
         i.putExtra("action", "compress");
         i.putExtra("uri", uri.toString());
-        i.putExtra("name", baseName(a, uri));
-        a.startForegroundService(i);
+        i.putExtra("name", baseName(c, uri));
+        c.startForegroundService(i);
     }
 
-    private static void transcribe(Activity a, Uri uri, String mime) {
-        toast(a, "正在准备…");
+    private static void transcribe(Context c, Uri uri, String mime) {
+        toast(c, "正在准备…");
         new Thread(() -> {
             try {
-                String name = baseName(a, uri);
+                String name = baseName(c, uri);
                 File audio;
                 String audioMime;
                 if (mime.startsWith("video/")) {
-                    audio = Media.extractAudio(a, uri, name);
+                    audio = Media.extractAudio(c, uri, name);
                     audioMime = "audio/mp4";
-                    toast(a, "音轨已提取，正在转写…");
+                    toast(c, "音轨已提取，正在转写…");
                 } else {
-                    audio = copyToDerived(a, uri, name);
+                    audio = copyToDerived(c, uri, name);
                     audioMime = mime;
                 }
-                String text = Transcription.run(a, audio, audioMime);
-                Transcription.saveToDownloads(a, name + ".txt", text);
+                String text = Transcription.run(c, audio, audioMime);
+                Transcription.saveToDownloads(c, name + ".txt", text);
                 String message = "转写完成：" + text.length() + " 字";
-                if (Config.tSync(a)) {
-                    Transcription.syncToMac(a, name + ".txt", text);
+                if (Config.tSync(c)) {
+                    Transcription.syncToMac(c, name + ".txt", text);
                     message += "，已同步到 Mac";
                 }
-                toast(a, message);
+                toast(c, message);
             } catch (Exception e) {
-                toast(a, "转写失败：" + msg(e));
+                toast(c, "转写失败：" + msg(e));
             }
         }, "action-transcribe").start();
     }
@@ -145,7 +153,8 @@ final class Actions {
         return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 
-    private static void toast(Activity a, String s) {
-        a.runOnUiThread(() -> Toast.makeText(a, s, Toast.LENGTH_SHORT).show());
+    private static void toast(Context c, String s) {
+        Context app = c.getApplicationContext() == null ? c : c.getApplicationContext();
+        MAIN.post(() -> Toast.makeText(app, s, Toast.LENGTH_SHORT).show());
     }
 }
