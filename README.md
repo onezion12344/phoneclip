@@ -88,7 +88,7 @@ adb shell am start -n ai.onezion.phoneclip/.MainActivity \
 ### 转写与压缩（手机端）
 
 - 转写设置：App 的「转写」卡片里填 **Base URL / API Key / Model**（任何 OpenAI 兼容的 `/v1/audio/transcriptions`，云端或你自建的本地服务）。Key 只存在手机本地。
-- 转写结果：手机 `Download/PhoneClip/Transcripts/`；打开「转写后同步文本到 Mac」会再写一份到 Mac 的 `~/Documents/PhoneClip/Transcripts/`。
+- 转写结果：手机 `Download/PhoneClip/Transcripts/`；打开「转写后同步文本到 Mac」会再写一份到 Mac 的转录文件夹（默认 `~/Documents/PhoneClip/Transcripts/`，可在菜单「偏好设置…」里改）。
 - 视频转写会先无损抽音轨再上传转写；视频压缩用系统 `MediaCodec`（不打包 ffmpeg），目标 720p H.264；音轨只支持 AAC（mp4a）直拷，其他编码会被丢弃。
 
 ## 更新

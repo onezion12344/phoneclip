@@ -7,6 +7,7 @@ struct PhoneClipConfig: Codable {
     var listen_ip: String?
     var notify: Bool?
     var sound: Bool?
+    var transcript_dir: String?
 }
 
 struct HTTPRequest {
@@ -228,6 +229,20 @@ final class PhoneClipServer {
         stop()
         start()
         notifyState()
+    }
+
+    var transcriptDir: String {
+        let custom = config.transcript_dir ?? ""
+        return custom.isEmpty
+            ? NSHomeDirectory() + "/Documents/PhoneClip/Transcripts"
+            : custom
+    }
+
+    func setTranscriptDir(_ path: String) {
+        var c = config
+        c.transcript_dir = path.isEmpty ? nil : path
+        config = c
+        saveConfig()
     }
 
     func addressList() -> [String] {
@@ -476,9 +491,7 @@ final class PhoneClipServer {
         var name = saneName(req.query["name"] ?? "")
         if name.isEmpty { name = "file" }
         let bucket = req.query["dir"] ?? ""
-        let destDir = bucket == "transcripts"
-            ? NSHomeDirectory() + "/Documents/PhoneClip/Transcripts"
-            : filesDir
+        let destDir = bucket == "transcripts" ? transcriptDir : filesDir
         try? FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true)
         let path = uniquePath(destDir + "/" + name)
         guard (try? req.body.write(to: URL(fileURLWithPath: path))) != nil else {

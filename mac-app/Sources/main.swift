@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var tokenField: NSTextField!
     private var autostartButton: NSButton!
     private var autostartStatus: NSTextField!
+    private var transcriptStatus: NSTextField!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = ProcessInfo.processInfo.arguments
@@ -172,6 +173,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         autostartStatus.frame = NSRect(x: 176, y: 84, width: 200, height: 18)
         v.addSubview(autostartStatus)
 
+        let tButton = NSButton(title: "选择转录文件夹…", target: self,
+                               action: #selector(chooseTranscriptDir))
+        tButton.frame = NSRect(x: 24, y: 46, width: 140, height: 26)
+        v.addSubview(tButton)
+
+        transcriptStatus = NSTextField(labelWithString: server.transcriptDir)
+        transcriptStatus.font = NSFont.systemFont(ofSize: 10)
+        transcriptStatus.textColor = .secondaryLabelColor
+        transcriptStatus.lineBreakMode = .byTruncatingMiddle
+        transcriptStatus.frame = NSRect(x: 176, y: 50, width: 200, height: 16)
+        v.addSubview(transcriptStatus)
+
         let save = NSButton(title: "保存并重启", target: self, action: #selector(savePrefs))
         save.keyEquivalent = "\r"
         save.frame = NSRect(x: 246, y: 20, width: 124, height: 30)
@@ -225,6 +238,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateAutostart() {
         autostartButton?.title = autostartInstalled ? "停用开机启动" : "启用开机启动"
         autostartStatus?.stringValue = autostartInstalled ? "当前：已启用" : "当前：未启用"
+    }
+
+    @objc private func chooseTranscriptDir() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL = URL(fileURLWithPath: server.transcriptDir)
+        panel.prompt = "选择"
+        panel.begin { [weak self] response in
+            guard let self, response == .OK, let url = panel.url else { return }
+            self.server.setTranscriptDir(url.path)
+            self.transcriptStatus.stringValue = url.path
+            Toast.show("转录文件夹", url.path)
+        }
     }
 
     @objc private func regenToken() {

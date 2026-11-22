@@ -40,6 +40,11 @@ def wait_for(pred, seconds):
 
 def main():
     tmp = tempfile.mkdtemp(prefix="pc-test-")
+    transcript_dir = os.path.join(tmp, "transcripts")
+    import secrets
+    json.dump({"token": secrets.token_hex(16), "port": PORT,
+               "transcript_dir": transcript_dir},
+              open(os.path.join(tmp, "config.json"), "w"))
     proc = subprocess.Popen([APP, "--dir", tmp, "--port", str(PORT), "--allow-multi"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -47,6 +52,13 @@ def main():
         if not wait_for(lambda: os.path.exists(cfg), 15):
             print("FAIL  app did not start"); return 1
         token = json.load(open(cfg))["token"]
+        def up():
+            try:
+                return req("GET", "/v1/ping", token, timeout=1)[0] == 200
+            except Exception:
+                return False
+        if not wait_for(up, 20):
+            print("FAIL  server did not answer /v1/ping"); return 1
 
         # --- clipboard snapshot (restored at the end)
         original = {"kind": "", "text": ""}
@@ -151,13 +163,13 @@ def main():
         if os.path.exists(target):
             os.remove(target)
 
-        os.makedirs(TRANSCRIPTS, exist_ok=True)
-        out = os.path.join(TRANSCRIPTS, "server-test.txt")
+        os.makedirs(transcript_dir, exist_ok=True)
+        out = os.path.join(transcript_dir, "server-test.txt")
         if os.path.exists(out):
             os.remove(out)
         st, _ = req("POST", "/v1/file?name=server-test.txt&silent=1&dir=transcripts",
                     token, b"transcript-body", ctype="text/plain")
-        check("transcript bucket writes to Documents",
+        check("transcript bucket honours the configured folder",
               st == 200 and os.path.exists(out), out)
         if os.path.exists(out):
             os.remove(out)

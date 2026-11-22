@@ -29,7 +29,7 @@ app binary makes the release exit 1 with the manifest untouched.
 - Phone long-polls `GET /v1/clip?rev=N&wait=S`; the Mac answer may also carry a
   `cmd {id,op,path}` for sidecar browsing. Phone replies on `/v1/sidecar/result?id=`.
 - Phone → Mac: `POST /v1/photo`, `/v1/file` (`silent=1` = save without clipboard,
-  `dir=transcripts` = `~/Documents/PhoneClip/Transcripts`), `POST /v1/clip?kind=text|image`.
+  `dir=transcripts` = 偏好设置里的转录文件夹，默认 `~/Documents/PhoneClip/Transcripts`), `POST /v1/clip?kind=text|image`.
 - Mac state: `rev` bumps only on real clipboard changes; `noteOwnWrite` updates state
   **without** bumping rev so the phone does not re-apply its own write.
 - Shared config: `~/Library/Application Support/PhoneClip/config.json` (token, port).
