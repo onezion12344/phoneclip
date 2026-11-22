@@ -21,10 +21,17 @@ if ! /usr/bin/python3 "$HERE/tests/server_test.py"; then
   exit 1
 fi
 
+
 sed -i '' -E "s/android:versionCode=\"[0-9]+\"/android:versionCode=\"$CODE\"/" "$HERE/AndroidManifest.xml"
 sed -i '' -E "s/android:versionName=\"[^\"]+\"/android:versionName=\"$V\"/" "$HERE/AndroidManifest.xml"
 
 "$HERE/build.sh" "$HERE/build/PhoneClip.apk" >/dev/null
+
+echo "==> logic tests"
+if ! "$HERE/tests/logic_test.sh"; then
+  echo "logic tests failed — do not publish this build"
+  exit 1
+fi
 DMG="$HERE/build/PhoneClip-$V.dmg"
 rm -f "$DMG"
 STAGE="$(mktemp -d)"
