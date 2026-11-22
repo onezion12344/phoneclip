@@ -69,7 +69,7 @@ token      xxxxxxxx
 1. 从 [Releases](https://github.com/onezion12344/phoneclip/releases) 下载 `PhoneClip.apk` 安装；
 2. 打开 App，填上一步的地址和 token，点 **Start bridge**，允许「照片和视频」权限；
 3. 控制中心编辑 → 添加「发送剪贴板」磁贴；
-4. 设置 → 应用 → 自启动 → 允许 OneZion Clip；电池 → 耗电管理 → 允许后台活动。
+4. 设置 → 应用 → 自启动 → 允许 OneZion Connect；电池 → 耗电管理 → 允许后台活动。
 
 也可以用 adb 一次配好：
 
@@ -81,7 +81,7 @@ adb shell am start -n ai.onezion.phoneclip/.MainActivity \
 ## 使用
 
 - **拍照/截图** → 什么都不用做，Mac 右上角会弹「照片已从手机复制」；
-- **发文件** → 相册、文件管理器、微信里选「分享」→ OneZion Clip；也可以直接在 App 里点「选择文件…」（任意格式）或「选择照片…」；
+- **发文件** → 相册、文件管理器、微信里选「分享」→ OneZion Connect；也可以直接在 App 里点「选择文件…」（任意格式）或「选择照片…」；
 - **发文字** → 复制后下拉点「发送剪贴板」磁贴，或在 App 文本框里输入；
 - **转写 / 压缩** → 分享音频或视频后会弹出动作菜单：发送原样 / 只保留音频 / 压缩到 720p / 转写；也可以在 App 里「选择文件…」后选同样的动作。
 - **相册范围** → App 里勾选「Auto-sync all photos」；关掉则只同步 `DCIM/Camera`；
