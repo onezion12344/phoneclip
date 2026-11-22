@@ -578,6 +578,7 @@ public class MainActivity extends Activity {
             i = new Intent("android.provider.action.PICK_IMAGES");
             i.setType("image/*");
             i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            i.putExtra("android.provider.extra.PICK_IMAGES_MAX", 100);
         } else {
             i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             i.addCategory(Intent.CATEGORY_OPENABLE);

@@ -94,7 +94,12 @@ final class PhoneClipServer {
     private let queue = DispatchQueue(label: "ai.onezion.phoneclip.server")
     private var listener: NWListener?
     private var timer: DispatchSourceTimer?
-    private(set) var config = PhoneClipConfig(token: "", port: 47411)
+    private let cfgLock = NSLock()
+    private var _config = PhoneClipConfig(token: "", port: 47411)
+    var config: PhoneClipConfig {
+        get { cfgLock.lock(); defer { cfgLock.unlock() }; return _config }
+        set { cfgLock.lock(); _config = newValue; cfgLock.unlock() }
+    }
     private(set) var running = false
     private(set) var lastError = ""
 
@@ -174,7 +179,9 @@ final class PhoneClipServer {
         }
         loadConfig()
         if let p = portOverride, p > 0 {
-            config.port = p
+            var c = config
+            c.port = p
+            config = c
             saveConfig()
         }
     }
@@ -193,7 +200,9 @@ final class PhoneClipServer {
                                      listen_ip: nil, notify: true, sound: false)
         }
         if config.token.isEmpty {
-            config.token = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+            var c = config
+            c.token = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+            config = c
         }
         saveConfig()
     }
@@ -207,8 +216,10 @@ final class PhoneClipServer {
     }
 
     func update(port: Int, token: String) {
-        config.port = port
-        config.token = token
+        var c = config
+        c.port = port
+        c.token = token
+        config = c
         saveConfig()
         stop()
         start()
