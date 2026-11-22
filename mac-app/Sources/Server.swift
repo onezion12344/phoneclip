@@ -414,7 +414,7 @@ final class PhoneClipServer {
     }
 
     private func dispatch(_ req: HTTPRequest, _ conn: NWConnection) {
-        logLine("\(req.method) \(req.path)")
+        logLine("\(req.method) \(req.path) from \(conn.endpoint)")
         guard authorized(req) else {
             respond(conn, status: 403, body: Data("forbidden".utf8))
             return
