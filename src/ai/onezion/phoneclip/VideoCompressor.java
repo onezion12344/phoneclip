@@ -127,6 +127,9 @@ final class VideoCompressor {
                             }
                         }
                         if (size >= 0 && buf != null) {
+                            if (size > buf.capacity()) {
+                                throw new Exception("样本大于解码器输入缓冲");
+                            }
                             sample.position(0);
                             sample.limit(size);
                             buf.clear();
