@@ -105,18 +105,16 @@ gh release create v1.4.0 build/PhoneClip.apk \
 
 手机端 24 小时内自动发现新版本；签名固定用同一把 debug keystore（`~/.android/debug.keystore`），换签名会导致覆盖安装失败。
 
-## 资源占用（OnePlus Ace 3 Pro 实测）
+## 资源占用
 
-| 指标 | 数值 |
-|---|---|
-| 静置 CPU | 0.05 秒 / 2 分钟（≈0.04% 单核） |
-| 内存 PSS | ≈14 MB |
-| 空闲请求 | 1 次 / 4 分钟（长轮询） |
-| 照片延迟 | 1–3 秒 |
-| Mac App 安装体积 | 1.3 MB（原生 Swift/AppKit） |
-| Mac App 内存 | ≈68 MB RSS（含 AppKit 共享库；Electron 同类应用通常 200 MB+） |
+| 指标 | 数值 | 来源 |
+|---|---|---|
+| 空闲请求 | 1 次 / 4 分钟（`wait=240` 长轮询） | 代码 + 协议测试 |
+| 静置 CPU / 内存 PSS / 照片延迟 | 待真机实测 | — |
+| Mac App 安装体积 | 1.3 MB（原生 Swift/AppKit） | 实测 |
+| Mac App 内存 | ≈72 MB RSS（含共享框架；Electron 同类通常 200 MB+） | 实测 |
 
-常驻的真实耗电大头是 Tailscale 本身，不是这个 App。
+常驻的真实耗电大头是 Tailscale 本身，不是这个 App。手机端的 CPU/PSS 与照片延迟数字要等真机跑过再补，这里不写估算。
 
 ## 已知限制
 
