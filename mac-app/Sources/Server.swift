@@ -70,7 +70,8 @@ enum HTTPParser {
             guard let lineEnd = data[i...].firstIndex(of: 0x0A) else { return nil }
             var line = String(decoding: data[i..<lineEnd], as: UTF8.self)
             line = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let size = Int(line, radix: 16) else { return nil }
+            if let semi = line.firstIndex(of: ";") { line = String(line[..<semi]) }
+            guard let size = Int(line, radix: 16) else { return Data() }
             i = data.index(after: lineEnd)
             if size == 0 { return out }
             guard data.distance(from: i, to: data.endIndex) >= size else { return nil }
@@ -222,9 +223,9 @@ final class PhoneClipServer {
         var ptr = first
         while true {
             let ifa = ptr.pointee
-            if ifa.ifa_addr.pointee.sa_family == UInt8(AF_INET) {
+            if let addr = ifa.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET) {
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                if getnameinfo(ifa.ifa_addr, socklen_t(ifa.ifa_addr.pointee.sa_len),
+                if getnameinfo(addr, socklen_t(addr.pointee.sa_len),
                                &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
                     let ip = String(cString: host)
                     if ip != "127.0.0.1" && !ip.hasPrefix("169.254") {
@@ -253,7 +254,8 @@ final class PhoneClipServer {
             do {
                 let params = NWParameters.tcp
                 params.allowLocalEndpointReuse = true
-                let port = NWEndpoint.Port(rawValue: UInt16(self.config.port)) ?? 47411
+                let safePort = min(max(self.config.port, 1), 65535)
+                let port = NWEndpoint.Port(rawValue: UInt16(safePort)) ?? 47411
                 let listener = try NWListener(using: params, on: port)
                 listener.newConnectionHandler = { [weak self] conn in
                     self?.accept(conn)
@@ -280,8 +282,9 @@ final class PhoneClipServer {
     }
 
     func stop() {
-        queue.sync {
-            listener?.cancel()
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.listener?.cancel()
             listener = nil
             timer?.cancel()
             timer = nil
@@ -357,6 +360,10 @@ final class PhoneClipServer {
             guard let self else { return }
             var buf = buffer
             if let data { buf.append(data) }
+            if buf.count > (64 << 20) {
+                self.respond(conn, status: 413, body: Data())
+                return
+            }
             if let req = HTTPParser.parse(buf) {
                 self.dispatch(req, conn)
                 return
@@ -449,6 +456,10 @@ final class PhoneClipServer {
         let batch = req.query["batch"] ?? ""
         let total = Int(req.query["n"] ?? "0") ?? 0
         let idx = Int(req.query["i"] ?? "0") ?? 0
+        if total > 200 || idx < 0 || (total > 0 && idx >= total) {
+            respond(conn, status: 400, body: Data("bad batch".utf8))
+            return
+        }
         if (req.query["silent"] ?? "") == "1" {
             respond(conn, status: 200, body: Data("ok".utf8))
             return
@@ -562,7 +573,9 @@ final class PhoneClipServer {
         guard !imagePath.isEmpty, let data = FileManager.default.contents(atPath: imagePath) else {
             respond(conn, status: 404, body: Data()); return
         }
-        respond(conn, status: 200, contentType: "image/png", body: data)
+        let type = imagePath.lowercased().hasSuffix(".jpg") || imagePath.lowercased().hasSuffix(".jpeg")
+            ? "image/jpeg" : "image/png"
+        respond(conn, status: 200, contentType: type, body: data)
     }
 
     private func respondJSON(_ conn: NWConnection, _ obj: [String: Any]) {
@@ -579,6 +592,7 @@ final class PhoneClipServer {
         case 400: reason = "Bad Request"
         case 403: reason = "Forbidden"
         case 404: reason = "Not Found"
+        case 413: reason = "Payload Too Large"
         case 500: reason = "Internal Server Error"
         default: reason = "OK"
         }

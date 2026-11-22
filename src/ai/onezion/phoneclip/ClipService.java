@@ -226,7 +226,6 @@ public class ClipService extends Service {
     private void pushLocalClip() throws Exception {
         String server = Config.server(this);
         if (server.isEmpty()) return;
-        if (!Settings.canDrawOverlays(this)) return;
         ClipData clip = clipboard.getPrimaryClip();
         if (clip == null || clip.getItemCount() == 0) return;
 
@@ -299,7 +298,10 @@ public class ClipService extends Service {
         lastRev = rev;
 
         JSONObject cmd = o.optJSONObject("cmd");
-        if (cmd != null) handleCommand(cmd);
+        if (cmd != null) {
+            // never block the long-poll while a file uploads
+            new Thread(() -> handleCommand(cmd), "sidecar-cmd").start();
+        }
     }
 
     // ---- sidecar: phone files for the Mac app -------------------------------

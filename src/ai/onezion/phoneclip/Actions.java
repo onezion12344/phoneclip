@@ -27,8 +27,7 @@ final class Actions {
         String mime = a.getContentResolver().getType(uris.get(0));
         boolean media = mime != null && (mime.startsWith("audio/") || mime.startsWith("video/"));
         if (!media) {
-            send(app, uris);
-            onDone.run();
+            send(app, uris, onDone);
             return;
         }
 
@@ -44,23 +43,27 @@ final class Actions {
         }
         items.add(transcribe);
 
+        final boolean[] acted = {false};
         AlertDialog dialog = new AlertDialog.Builder(
                 a, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("要做什么？")
                 .setItems(items.toArray(new String[0]), (d, which) -> {
+                    acted[0] = true;
                     String label = items.get(which);
-                    if (label.equals("发送到 Mac")) send(app, uris);
-                    else if (label.equals("只保留音频")) audioOnly(app, uris.get(0), mime);
-                    else if (label.startsWith("压缩到")) compress(app, uris.get(0));
-                    else if (label.startsWith("压缩音频")) compressAudio(app, uris.get(0));
-                    else transcribe(app, uris.get(0), mime);
+                    if (label.equals("发送到 Mac")) send(app, uris, onDone);
+                    else if (label.equals("只保留音频")) audioOnly(app, uris.get(0), mime, onDone);
+                    else if (label.startsWith("压缩到")) compress(app, uris.get(0), onDone);
+                    else if (label.startsWith("压缩音频")) compressAudio(app, uris.get(0), onDone);
+                    else transcribe(app, uris.get(0), mime, onDone);
                 })
                 .create();
-        dialog.setOnDismissListener(d -> onDone.run());
+        dialog.setOnDismissListener(d -> {
+            if (!acted[0]) onDone.run();
+        });
         dialog.show();
     }
 
-    private static void send(Context c, ArrayList<Uri> uris) {
+    private static void send(Context c, ArrayList<Uri> uris, Runnable done) {
         toast(c, "正在复制…");
         new Thread(() -> {
             try {
@@ -68,15 +71,17 @@ final class Actions {
                 toast(c, uris.size() == 1 ? "已复制到手机 + Mac" : "已复制 " + uris.size() + " 个文件");
             } catch (Exception e) {
                 toast(c, "失败：" + msg(e));
+            } finally {
+                done.run();
             }
         }, "action-send").start();
     }
 
-    private static void audioOnly(Context c, Uri uri, String mime) {
+    private static void audioOnly(Context c, Uri uri, String mime, Runnable done) {
         ArrayList<Uri> one = new ArrayList<>();
         one.add(uri);
         if (!mime.startsWith("video/")) {
-            send(c, one);
+            send(c, one, done);
             return;
         }
         toast(c, "正在提取音轨…");
@@ -89,11 +94,13 @@ final class Actions {
                 toast(c, "已提取音频并发送");
             } catch (Exception e) {
                 toast(c, "失败：" + msg(e));
+            } finally {
+                done.run();
             }
         }, "action-audio").start();
     }
 
-    private static void compress(Context c, Uri uri) {
+    private static void compress(Context c, Uri uri, Runnable done) {
         toast(c, "正在压缩到 720p（长视频需要几分钟）…");
         Intent i = new Intent(c, ClipService.class);
         i.putExtra("action", "compress");
@@ -102,16 +109,17 @@ final class Actions {
         ShareActivity.startServiceSafely(c, i);
     }
 
-    private static void compressAudio(Context c, Uri uri) {
+    private static void compressAudio(Context c, Uri uri, Runnable done) {
         toast(c, "正在压缩音频（AAC 96k）…");
         Intent i = new Intent(c, ClipService.class);
         i.putExtra("action", "compressaudio");
         i.putExtra("uri", uri.toString());
         i.putExtra("name", baseName(c, uri));
         ShareActivity.startServiceSafely(c, i);
+        done.run();
     }
 
-    private static void transcribe(Context c, Uri uri, String mime) {
+    private static void transcribe(Context c, Uri uri, String mime, Runnable done) {
         toast(c, "正在准备…");
         new Thread(() -> {
             try {
@@ -136,6 +144,8 @@ final class Actions {
                 toast(c, message);
             } catch (Exception e) {
                 toast(c, "转写失败：" + msg(e));
+            } finally {
+                done.run();
             }
         }, "action-transcribe").start();
     }

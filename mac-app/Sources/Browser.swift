@@ -94,6 +94,7 @@ final class PhoneBrowserController: NSObject, NSTableViewDataSource, NSTableView
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?,
                    row: Int) -> NSView? {
+        guard entries.indices.contains(row) else { return nil }
         let e = entries[row]
         let name = e["name"] as? String ?? ""
         let isDir = e["dir"] as? Bool ?? false

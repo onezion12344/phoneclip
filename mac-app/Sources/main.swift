@@ -183,7 +183,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func savePrefs() {
-        let port = Int(portField.stringValue) ?? server.config.port
+        var port = Int(portField.stringValue) ?? server.config.port
+        if port < 1 || port > 65535 { port = server.config.port }
         let token = tokenField.stringValue.trimmingCharacters(in: .whitespaces)
         if token.isEmpty {
             Toast.show("设置", "Token 不能为空")

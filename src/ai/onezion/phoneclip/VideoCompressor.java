@@ -105,6 +105,8 @@ final class VideoCompressor {
             dec.start();
 
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            ByteBuffer sample = ByteBuffer.allocateDirect(4 << 20);
+            long startedAt = System.currentTimeMillis();
             boolean inputDone = false, decoderDone = false, encoderDone = false;
             boolean muxStarted = false;
             int videoMuxTrack = -1;
@@ -116,7 +118,20 @@ final class VideoCompressor {
                     int in = dec.dequeueInputBuffer(10_000);
                     if (in >= 0) {
                         ByteBuffer buf = dec.getInputBuffer(in);
-                        int size = buf == null ? -1 : video.readSampleData(buf, 0);
+                        int size = buf == null ? -1 : video.readSampleData(sample, 0);
+                        if (size < 0) {
+                            long need = video.getSampleSize();
+                            if (need > 0 && need <= (16L << 20) && sample.capacity() < need) {
+                                sample = ByteBuffer.allocateDirect((int) need);
+                                size = video.readSampleData(sample, 0);
+                            }
+                        }
+                        if (size >= 0 && buf != null) {
+                            sample.position(0);
+                            sample.limit(size);
+                            buf.clear();
+                            buf.put(sample);
+                        }
                         if (size < 0) {
                             dec.queueInputBuffer(in, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                             inputDone = true;
@@ -168,8 +183,9 @@ final class VideoCompressor {
                         encoderDone = true;
                     }
                 }
-                if (inputDone && decoderDone && System.currentTimeMillis() - lastOutput > 20000) {
-                    throw new Exception("编码器无输出，已中止");
+                if (System.currentTimeMillis() - lastOutput > 30000
+                        || System.currentTimeMillis() - startedAt > 30L * 60 * 1000) {
+                    throw new Exception("编码器无输出或超时，已中止");
                 }
             }
 

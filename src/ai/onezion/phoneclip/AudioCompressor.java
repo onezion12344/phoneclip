@@ -61,6 +61,7 @@ final class AudioCompressor {
             MediaCodec.BufferInfo decInfo = new MediaCodec.BufferInfo();
             MediaCodec.BufferInfo encInfo = new MediaCodec.BufferInfo();
             boolean inputDone = false, encDone = false, encoderEosSent = false;
+            boolean pendingEos = false;
             int pendingDecOut = -1;
             int muxTrack = -1;
             boolean muxStarted = false;
@@ -100,6 +101,7 @@ final class AudioCompressor {
                             dst.put(src);
                             enc.queueInputBuffer(encIn, 0, decInfo.size,
                                     decInfo.presentationTimeUs, 0);
+                            if (eos) pendingEos = true;
                         } else if (eos) {
                             enc.queueInputBuffer(encIn, 0, 0, decInfo.presentationTimeUs,
                                     MediaCodec.BUFFER_FLAG_END_OF_STREAM);
@@ -109,6 +111,11 @@ final class AudioCompressor {
                         }
                         dec.releaseOutputBuffer(pendingDecOut, false);
                         pendingDecOut = -1;
+                    } else if (pendingEos) {
+                        pendingEos = false;
+                        enc.queueInputBuffer(encIn, 0, 0, 0,
+                                MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                        encoderEosSent = true;
                     }
                 }
 

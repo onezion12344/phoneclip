@@ -41,10 +41,14 @@ public class ClipProvider extends ContentProvider {
                                   String[] selectionArgs, String sortOrder) { return null; }
 
     @Override public String getType(Uri uri) {
-        String path = uri.getPath();
-        if (path != null && path.endsWith(".apk")) {
-            return "application/vnd.android.package-archive";
-        }
+        String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase();
+        if (path.endsWith(".apk")) return "application/vnd.android.package-archive";
+        if (path.endsWith(".mp4")) return "video/mp4";
+        if (path.endsWith(".m4a")) return "audio/mp4";
+        if (path.endsWith(".mp3")) return "audio/mpeg";
+        if (path.endsWith(".pdf")) return "application/pdf";
+        if (path.endsWith(".txt")) return "text/plain";
+        if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
         return "image/png";
     }
 
