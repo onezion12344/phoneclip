@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var server: PhoneClipServer!
@@ -248,11 +249,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-let bundleID = Bundle.main.bundleIdentifier ?? ""
 let allowMulti = CommandLine.arguments.contains("--allow-multi")
-if !allowMulti, !bundleID.isEmpty,
-   NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1 {
-    exit(0)
+if !allowMulti {
+    // NSRunningApplication misses processes started by exec/launchd; flock is reliable.
+    let lockPath = NSTemporaryDirectory() + "ai.onezion.phoneclip.mac.lock"
+    let fd = open(lockPath, O_CREAT | O_RDWR, 0o600)
+    if fd < 0 || flock(fd, LOCK_EX | LOCK_NB) != 0 {
+        exit(0)
+    }
+    // fd stays open for the lifetime of the process
 }
 
 let app = NSApplication.shared
