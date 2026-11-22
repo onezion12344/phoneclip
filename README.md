@@ -101,7 +101,7 @@ gh release create v1.4.0 build/PhoneClip.apk \
   --title "PhoneClip 1.4.0" --notes "..."
 ```
 
-真机验收步骤见 [docs/verify-device.md](docs/verify-device.md)；一条命令：`./selftest.sh [adb-serial]`（手机会被自动安装、配置，跑侧车 / 转写 / 720p / AAC 四组断言；首次需要手动给一次「所有文件访问」权限）。
+真机验收步骤见 [docs/verify-device.md](docs/verify-device.md)；后续方向见 [docs/roadmap.md](docs/roadmap.md)；一条命令：`./selftest.sh [adb-serial]`（手机会被自动安装、配置，跑侧车 / 转写 / 720p / AAC 四组断言；首次需要手动给一次「所有文件访问」权限）。
 
 手机端 24 小时内自动发现新版本；签名固定用同一把 debug keystore（`~/.android/debug.keystore`），换签名会导致覆盖安装失败。
 
@@ -140,7 +140,10 @@ phoneclip/
 ├── release.sh                  发版：改版本号 → 构建 → 打印 gh 命令
 ├── mac-app/                    原生菜单栏 App（Swift/AppKit，自带 HTTP 服务）
 ├── install-mac.sh              编译 + 安装到 /Applications + 登录自启
-└── docs/                       README 用的图
+├── selftest.sh                 真机验收（侧车 / 转写 / 压缩）
+├── tests/                      协议测试 + 主机逻辑测试
+├── tools/watch_phone.sh        等待手机上线后自动跑验收
+└── docs/                       图、验收清单、roadmap
 ```
 
 ## 安全
