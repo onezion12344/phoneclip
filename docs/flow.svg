@@ -53,11 +53,11 @@
   <!-- mac -->
   <rect x="832" y="118" width="312" height="268" rx="20" fill="#ffffff" fill-opacity="0.035" stroke="#ffffff" stroke-opacity="0.12"/>
   <rect x="1138" y="118" width="6" height="268" rx="3" fill="url(#violet)"/>
-  <text x="860" y="160" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="21" font-weight="600" fill="#e7ecf3">Mac · phoneclipd</text>
-  <text x="860" y="206" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15" fill="#9aa7b8">Go HTTP 服务</text>
-  <text x="860" y="236" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15" fill="#9aa7b8">NSPasteboard 助手（Swift）</text>
+  <text x="860" y="160" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="21" font-weight="600" fill="#e7ecf3">Mac · PhoneClip.app</text>
+  <text x="860" y="206" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15" fill="#9aa7b8">Swift · Network.framework</text>
+  <text x="860" y="236" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15" fill="#9aa7b8">NSPasteboard 读写</text>
   <text x="860" y="266" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15" fill="#9aa7b8">右上角浮窗提示</text>
-  <text x="860" y="296" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15" fill="#9aa7b8">LaunchAgent 开机自启</text>
+  <text x="860" y="296" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15" fill="#9aa7b8">LaunchAgent 登录自启</text>
   <text x="860" y="348" font-family="system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" fill="#5f6b7d">图片 / 文字 / 文件</text>
 
   <!-- github -->

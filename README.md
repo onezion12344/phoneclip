@@ -30,14 +30,14 @@
 
 - Android 端是前台服务：`MediaStore` 观察新照片，分享目标把文件拷进私有存储后用**自己的 `content://` URI** 写进剪贴板（这样别的 App 粘贴时系统才会授权）。
 - 传输是一条 HTTP 请求，端口 `47411`，token 鉴权；**Tailscale 或同一局域网**都行。
-- Mac 端的 `phoneclipd` 是 Go 写的守护进程，配一个 Swift 小工具读写 `NSPasteboard`；收到东西就放进剪贴板，并在右上角弹一张 1.7 秒的小卡片。
+- Mac 端是 `PhoneClip.app`：原生 Swift/AppKit 菜单栏 App，自带 HTTP 服务、剪贴板读写和浮窗提示，登录后由 LaunchAgent 自动启动。菜单里可以复制地址/Token、打开收到的照片或文件文件夹、改端口和 Token。
 - 反向（Mac → 手机）用 4 分钟长轮询：没变化就一直挂着，有变化立刻返回。
 
 ## 安装
 
 ### Mac
 
-需要 Go 与 Xcode Command Line Tools（`swiftc`）。
+macOS 13+，原生 App，不需要 Node / Electron，也不需要额外的运行时。
 
 ```bash
 git clone https://github.com/onezion12344/phoneclip.git
@@ -45,13 +45,15 @@ cd phoneclip
 ./install-mac.sh
 ```
 
-脚本会编译守护进程与剪贴板助手、装成 LaunchAgent（开机自启），并打印：
+脚本会编译 `PhoneClip.app`（约 1.3 MB）装到 `/Applications`，注册登录自启，并打印：
 
 ```
 Tailscale  http://100.x.y.z:47411
 LAN        http://192.168.x.y:47411
 token      xxxxxxxx
 ```
+
+菜单栏会出现剪贴板图标；所有功能都在它的菜单里。
 
 ### Android
 
@@ -92,6 +94,8 @@ gh release create v1.4.0 build/PhoneClip.apk \
 | 内存 PSS | ≈14 MB |
 | 空闲请求 | 1 次 / 4 分钟（长轮询） |
 | 照片延迟 | 1–3 秒 |
+| Mac App 安装体积 | 1.3 MB（原生 Swift/AppKit） |
+| Mac App 内存 | ≈68 MB RSS（含 AppKit 共享库；Electron 同类应用通常 200 MB+） |
 
 常驻的真实耗电大头是 Tailscale 本身，不是这个 App。
 
@@ -113,8 +117,8 @@ phoneclip/
 ├── build.sh                    不用 Gradle 的构建脚本（aapt2 + d8 + apksigner）
 ├── deploy-phone.sh             adb 一键安装/配置/测试
 ├── release.sh                  发版：改版本号 → 构建 → 打印 gh 命令
-├── mac/                        Mac 守护进程（Go + Swift 剪贴板助手 + 浮窗）
-├── install-mac.sh              安装/卸载/状态
+├── mac-app/                    原生菜单栏 App（Swift/AppKit，自带 HTTP 服务）
+├── install-mac.sh              编译 + 安装到 /Applications + 登录自启
 └── docs/                       README 用的图
 ```
 

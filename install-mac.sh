@@ -1,75 +1,46 @@
 #!/bin/bash
-# Install / uninstall the Mac side of OneZion Clip.
-#   ./install.sh            install + start the daemon
-#   ./install.sh uninstall  stop + remove the LaunchAgent (keeps config)
-#   ./install.sh status     show config and recent log
+# Install the native PhoneClip menu bar app + its login agent.
+#   ./install-mac.sh            build and install
+#   ./install-mac.sh uninstall  remove app + login agent (config kept)
+#   ./install-mac.sh status     show agent state and config
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-APP="$HOME/Library/Application Support/PhoneClip"
-PLIST="$HOME/Library/LaunchAgents/com.onezion.phoneclipd.plist"
-LABEL="com.onezion.phoneclipd"
-PORT=47411
+APP=/Applications/PhoneClip.app
+LABEL=ai.onezion.phoneclip.mac
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+CONFIG="$HOME/Library/Application Support/PhoneClip/config.json"
 
-cmd="${1:-install}"
-
-uninstall() {
-  launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-  rm -f "$PLIST"
-  echo "stopped and removed $LABEL (config kept in $APP)"
-}
-
-status() {
-  echo "config: $APP/config.json"
-  cat "$APP/config.json" 2>/dev/null || echo "(missing)"
-  echo "--- launchd"
-  launchctl print "gui/$(id -u)/$LABEL" 2>/dev/null | head -12 || echo "(not loaded)"
-  echo "--- log"
-  tail -20 /tmp/phoneclipd.log 2>/dev/null || true
-}
-
-case "$cmd" in
-  uninstall) uninstall; exit 0 ;;
-  status) status; exit 0 ;;
+case "${1:-install}" in
+  uninstall)
+    launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+    rm -f "$PLIST"
+    pkill -f "PhoneClip.app/Contents/MacOS/PhoneClip" 2>/dev/null || true
+    rm -rf "$APP"
+    echo "removed $APP (config kept in ~/Library/Application Support/PhoneClip)"
+    exit 0
+    ;;
+  status)
+    launchctl print "gui/$(id -u)/$LABEL" 2>/dev/null | head -10 || echo "(agent not loaded)"
+    [ -f "$CONFIG" ] && cat "$CONFIG"
+    exit 0
+    ;;
 esac
 
-mkdir -p "$APP/bin" "$APP/cache" "$HOME/Pictures/PhoneClip"
+# migrate away from the old Go daemon if it is still around
+launchctl bootout "gui/$(id -u)/com.onezion.phoneclipd" 2>/dev/null || true
+rm -f "$HOME/Library/LaunchAgents/com.onezion.phoneclipd.plist"
+pkill -f "Application Support/PhoneClip/bin/phoneclipd" 2>/dev/null || true
 
-echo "==> building daemon (go)"
-( cd "$HERE/mac" && go build -trimpath -ldflags='-s -w' -o "$APP/bin/phoneclipd" main.go )
+"$HERE/mac-app/build-app.sh"
 
-echo "==> building clipboard helper (swift)"
-swiftc -O "$HERE/mac/clip.swift" -o "$APP/bin/phoneclip-clip"
-swiftc -O "$HERE/mac/toast.swift" -o "$APP/bin/phoneclip-toast"
-
-TOKEN=$(/usr/bin/python3 -c '
-import json,sys,os
-p=os.path.expanduser("~/Library/Application Support/PhoneClip/config.json")
-try: print(json.load(open(p))["token"])
-except Exception: pass
-')
-if [ -z "${TOKEN:-}" ]; then
-  TOKEN=$(openssl rand -hex 16)
-fi
-
-TSIP=$(/usr/local/bin/tailscale ip -4 2>/dev/null | head -1 || true)
-if [ -z "$TSIP" ]; then
-  TSIP=$(/Applications/Tailscale.app/Contents/MacOS/Tailscale ip -4 2>/dev/null | head -1 || true)
-fi
-[ -z "$TSIP" ] && TSIP="127.0.0.1"
-
-/usr/bin/python3 - "$APP/config.json" "$TOKEN" "$PORT" "$TSIP" <<'PY'
-import json, sys
-path, token, port, ip = sys.argv[1:5]
-try:
-    cfg = json.load(open(path))
-except Exception:
-    cfg = {}
-cfg.update({"token": token, "port": int(port), "listen_ip": ip})
-cfg.setdefault("notify", True)
-cfg.setdefault("sound", False)
-json.dump(cfg, open(path, "w"), indent=2)
-PY
+echo "==> installing to $APP"
+pkill -f "PhoneClip.app/Contents/MacOS/PhoneClip" 2>/dev/null || true
+sleep 1
+rm -rf "$APP"
+cp -R "$HERE/mac-app/build/PhoneClip.app" "$APP"
+xattr -cr "$APP"
+codesign --force --deep -s - "$APP" >/dev/null 2>&1 || true
 
 cat > "$PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -78,29 +49,36 @@ cat > "$PLIST" <<PLIST
 <dict>
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key>
-  <array><string>$APP/bin/phoneclipd</string></array>
+  <array><string>$APP/Contents/MacOS/PhoneClip</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>ThrottleInterval</key><integer>5</integer>
-  <key>ProcessType</key><string>Background</string>
-  <key>StandardOutPath</key><string>/tmp/phoneclipd.log</string>
-  <key>StandardErrorPath</key><string>/tmp/phoneclipd.log</string>
+  <key>LimitLoadToSessionType</key><string>Aqua</string>
+  <key>StandardOutPath</key><string>/tmp/phoneclip-app.log</string>
+  <key>StandardErrorPath</key><string>/tmp/phoneclip-app.log</string>
 </dict>
 </plist>
 PLIST
 
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-launchctl kickstart -k "gui/$(id -u)/$LABEL"
+launchctl kickstart "gui/$(id -u)/$LABEL" 2>/dev/null || true
 
 sleep 1
-LANIP=$(ipconfig getifaddr en0 2>/dev/null || true)
+TOKEN=$(/usr/bin/python3 -c '
+import json, os
+print(json.load(open(os.path.expanduser("~/Library/Application Support/PhoneClip/config.json")))["token"])
+')
+PORT=$(/usr/bin/python3 -c '
+import json, os
+print(json.load(open(os.path.expanduser("~/Library/Application Support/PhoneClip/config.json")))["port"])
+')
+LAN=$(ipconfig getifaddr en0 2>/dev/null || true)
+TS=$(/usr/local/bin/tailscale ip -4 2>/dev/null | head -1 || true)
+
 echo
-echo "Mac side is up:"
-echo "  Tailscale  http://$TSIP:$PORT"
-echo "  LAN        http://${LANIP:-<no-en0>}:$PORT   (for the Ace, which has no Tailscale)"
+echo "PhoneClip.app is running in the menu bar."
+echo "  Tailscale  http://${TS:-<none>}:$PORT"
+echo "  LAN        http://${LAN:-<none>}:$PORT"
 echo "  token      $TOKEN"
 echo
-echo "Configure the phone app in one shot (once the APK is installed):"
-echo "  adb shell am start -n ai.onezion.phoneclip/.MainActivity \\"
-echo "    --es server http://$TSIP:$PORT --es token $TOKEN --ez start true"
+echo "The same URL + token go into the Android app."
