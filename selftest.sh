@@ -92,6 +92,16 @@ ffmpeg -y -loglevel error -i /tmp/pc_test.mp4 -vn -c:a copy /tmp/pc_test.m4a
 "${ADB[@]}" push /tmp/pc_test.mp4 /sdcard/Download/pc_test.mp4 >/dev/null
 "${ADB[@]}" push /tmp/pc_test.m4a /sdcard/Download/pc_test.m4a >/dev/null
 
+echo "== wait for the phone's poll loop"
+BEFORE=$(wc -l < /tmp/phoneclip-requests.log 2>/dev/null || echo 0)
+for i in $(seq 1 20); do
+  if tail -n +"$((BEFORE + 1))" /tmp/phoneclip-requests.log 2>/dev/null | grep -q "GET /v1/clip "; then
+    echo "phone is polling"
+    break
+  fi
+  sleep 1
+done
+
 echo "== sidecar"
 LIST=$(curl -s -m 30 -H "X-PhoneClip-Token: $TOKEN" "$BASE/v1/sidecar/probe?path=/sdcard/Download")
 echo "$LIST" | grep -q "pc_test.mp4" && ok "list /sdcard/Download" || no "list: $LIST"
