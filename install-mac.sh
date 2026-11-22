@@ -34,6 +34,14 @@ pkill -f "Application Support/PhoneClip/bin/phoneclipd" 2>/dev/null || true
 
 "$HERE/mac-app/build-app.sh"
 
+if [ "${SKIP_TESTS:-0}" != "1" ]; then
+  echo "==> protocol tests"
+  if ! /usr/bin/python3 "$HERE/tests/server_test.py"; then
+    echo "protocol tests failed — install aborted (use SKIP_TESTS=1 to bypass)"
+    exit 1
+  fi
+fi
+
 echo "==> installing to $APP"
 pkill -f "PhoneClip.app/Contents/MacOS/PhoneClip" 2>/dev/null || true
 sleep 1

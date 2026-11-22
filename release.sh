@@ -13,11 +13,18 @@ print(int(p[0]) * 10000 + int(p[1]) * 100 + int(p[2]))
 PY
 )
 
+"$HERE/mac-app/build-app.sh" >/dev/null
+
+echo "==> protocol tests"
+if ! /usr/bin/python3 "$HERE/tests/server_test.py"; then
+  echo "protocol tests failed — release aborted (manifest untouched)"
+  exit 1
+fi
+
 sed -i '' -E "s/android:versionCode=\"[0-9]+\"/android:versionCode=\"$CODE\"/" "$HERE/AndroidManifest.xml"
 sed -i '' -E "s/android:versionName=\"[^\"]+\"/android:versionName=\"$V\"/" "$HERE/AndroidManifest.xml"
 
 "$HERE/build.sh" "$HERE/build/PhoneClip.apk" >/dev/null
-"$HERE/mac-app/build-app.sh" >/dev/null
 DMG="$HERE/build/PhoneClip-$V.dmg"
 rm -f "$DMG"
 STAGE="$(mktemp -d)"
