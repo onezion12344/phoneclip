@@ -118,14 +118,13 @@ final class VideoCompressor {
                     int in = dec.dequeueInputBuffer(10_000);
                     if (in >= 0) {
                         ByteBuffer buf = dec.getInputBuffer(in);
-                        int size = buf == null ? -1 : video.readSampleData(sample, 0);
-                        if (size < 0) {
-                            long need = video.getSampleSize();
-                            if (need > 0 && need <= (16L << 20) && sample.capacity() < need) {
-                                sample = ByteBuffer.allocateDirect((int) need);
-                                size = video.readSampleData(sample, 0);
-                            }
+                        // readSampleData throws when the sample exceeds the buffer, so size it first.
+                        long need = video.getSampleSize();
+                        if (need > sample.capacity()) {
+                            if (need > (16L << 20)) throw new Exception("样本过大：" + need);
+                            sample = ByteBuffer.allocateDirect((int) need);
                         }
+                        int size = buf == null ? -1 : video.readSampleData(sample, 0);
                         if (size >= 0 && buf != null) {
                             if (size > buf.capacity()) {
                                 throw new Exception("样本大于解码器输入缓冲");
