@@ -48,6 +48,7 @@ public class ClipService extends Service {
     private String lastSentHash = "";
     private long lastPhotoEvent;
     private long lastClipStamp;
+    private int photoRetries;
 
     private volatile boolean running = true;
     private Thread pollThread;
@@ -64,11 +65,7 @@ public class ClipService extends Service {
                 .setOngoing(true)
                 .build();
         if (Build.VERSION.SDK_INT >= 34) {
-            try {
-                startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-            } catch (Exception e) {
-                startForeground(NOTIF_ID, n);
-            }
+            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         } else {
             startForeground(NOTIF_ID, n);
         }
@@ -104,17 +101,24 @@ public class ClipService extends Service {
     }
 
     private void checkUpdate() {
+        bg.removeCallbacks(updateTask);
         Update.checkAndNotify(this);
-        if (running) bg.postDelayed(this::checkUpdate, 24L * 60 * 60 * 1000);
+        if (running) bg.postDelayed(updateTask, 24L * 60 * 60 * 1000);
     }
 
+    private final Runnable updateTask = this::checkUpdate;
+
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null && !Config.enabled(this)) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         String action = intent == null ? null : intent.getStringExtra("action");
         Log.i(TAG, "action: " + action);
         if ("newest".equals(action)) bg.post(() -> uploadNewest(true));
         if ("test".equals(action)) bg.post(this::sendTest);
         if ("push".equals(action)) bg.post(this::pushLocalClipQuietly);
-        if ("update".equals(action)) bg.post(this::checkUpdate);
+        if ("update".equals(action)) bg.post(updateTask);
         if ("sharetest".equals(action)) bg.post(this::shareTest);
         if ("transcribetest".equals(action)) {
             String path = intent.getStringExtra("path");
@@ -203,11 +207,15 @@ public class ClipService extends Service {
             Http.post(server + "/v1/photo?name=" + name,
                     Config.token(this), "image/jpeg", jpeg);
             Config.setLastPhotoTime(this, p.dateAdded);
+            photoRetries = 0;
             note("Photo → Mac (" + jpeg.length / 1024 + " KB)");
         } catch (Exception e) {
             Log.w(TAG, "photo upload failed", e);
             note("Photo failed: " + e.getClass().getSimpleName());
-            bg.postDelayed(photoTask, 2500);
+            if (photoRetries < 4) {
+                photoRetries++;
+                bg.postDelayed(photoTask, 5000L * photoRetries);
+            }
         }
     }
 
@@ -268,6 +276,10 @@ public class ClipService extends Service {
                 sleep(15000);
                 continue;
             }
+            if (!server.equals(Config.lastServer(this))) {
+                Config.setLastServer(this, server);
+                lastRev = -1;
+            }
             try {
                 String body = Http.getTextOrNull(
                         server + "/v1/clip?rev=" + lastRev + "&wait=240",
@@ -296,6 +308,7 @@ public class ClipService extends Service {
             setImageClip(png);
         }
         lastRev = rev;
+        Config.setLastRev(this, rev);
 
         JSONObject cmd = o.optJSONObject("cmd");
         if (cmd != null) {

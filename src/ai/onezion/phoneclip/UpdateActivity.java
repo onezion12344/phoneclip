@@ -1,13 +1,19 @@
 package ai.onezion.phoneclip;
 
 import android.app.Activity;
-import android.net.Uri;
+import android.app.PendingIntent;
+import android.content.Intent;
+import android.content.pm.PackageInstaller;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.OutputStream;
 
-/** Downloads the latest GitHub release APK and hands it to the system installer. */
+/** Downloads the latest GitHub release APK and installs it via PackageInstaller. */
 public class UpdateActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -38,19 +44,38 @@ public class UpdateActivity extends Activity {
                 done("下载失败");
                 return;
             }
-            Uri uri = Uri.parse("content://" + ClipProvider.AUTHORITY + "/update/"
-                    + Update.ASSET);
-            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                            | android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
-            try {
-                startActivity(i);
-            } catch (Exception e) {
-                Toast.makeText(this, "无法打开安装器: " + e.getClass().getSimpleName(),
-                        Toast.LENGTH_LONG).show();
+            if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                Toast.makeText(this, "请先允许 OneZion Clip 安装应用", Toast.LENGTH_LONG).show();
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            android.net.Uri.parse("package:" + getPackageName())));
+                } catch (Exception ignored) {}
+                finish();
+                return;
             }
-            finish();
+            try {
+                PackageInstaller installer = getPackageManager().getPackageInstaller();
+                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+                        PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                params.setAppPackageName(getPackageName());
+                int sessionId = installer.createSession(params);
+                PackageInstaller.Session session = installer.openSession(sessionId);
+                try (OutputStream out = session.openWrite("base.apk", 0, apk.length());
+                     FileInputStream in = new FileInputStream(apk)) {
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                    session.fsync(out);
+                }
+                Intent callback = new Intent(this, InstallResultReceiver.class);
+                PendingIntent pending = PendingIntent.getBroadcast(this, sessionId, callback,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+                session.commit(pending.getIntentSender());
+                session.close();
+                finish();
+            } catch (Exception e) {
+                done("安装失败: " + e.getClass().getSimpleName());
+            }
         });
     }
 

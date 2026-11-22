@@ -38,7 +38,17 @@ public class ClipProvider extends ContentProvider {
     }
 
     @Override public Cursor query(Uri uri, String[] projection, String selection,
-                                  String[] selectionArgs, String sortOrder) { return null; }
+                                  String[] selectionArgs, String sortOrder) {
+        try {
+            File file = new File(getContext().getFilesDir(), uri.getPath()).getCanonicalFile();
+            String[] cols = { "_display_name", "_size" };
+            android.database.MatrixCursor c = new android.database.MatrixCursor(cols);
+            c.addRow(new Object[] { file.getName(), file.length() });
+            return c;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     @Override public String getType(Uri uri) {
         String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase();

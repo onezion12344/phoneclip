@@ -101,22 +101,34 @@ final class Actions {
     }
 
     private static void compress(Context c, Uri uri, Runnable done) {
-        toast(c, "正在压缩到 720p（长视频需要几分钟）…");
-        Intent i = new Intent(c, ClipService.class);
-        i.putExtra("action", "compress");
-        i.putExtra("uri", uri.toString());
-        i.putExtra("name", baseName(c, uri));
-        ShareActivity.startServiceSafely(c, i);
+        toast(c, "正在准备…");
+        dispatchCompress(c, uri, "compress", "正在压缩到 720p（长视频需要几分钟）…", done);
     }
 
     private static void compressAudio(Context c, Uri uri, Runnable done) {
-        toast(c, "正在压缩音频（AAC 96k）…");
-        Intent i = new Intent(c, ClipService.class);
-        i.putExtra("action", "compressaudio");
-        i.putExtra("uri", uri.toString());
-        i.putExtra("name", baseName(c, uri));
-        ShareActivity.startServiceSafely(c, i);
-        done.run();
+        toast(c, "正在准备…");
+        dispatchCompress(c, uri, "compressaudio", "正在压缩音频（AAC 96k）…", done);
+    }
+
+    /** Copy the picked file into app storage first: the picker grant dies with the Activity. */
+    private static void dispatchCompress(Context c, Uri uri, String action,
+                                         String notice, Runnable done) {
+        new Thread(() -> {
+            try {
+                String name = baseName(c, uri);
+                File src = copyToDerived(c, uri, name);
+                Intent i = new Intent(c, ClipService.class);
+                i.putExtra("action", action);
+                i.putExtra("uri", Uri.fromFile(src).toString());
+                i.putExtra("name", name);
+                ShareActivity.startServiceSafely(c, i);
+                toast(c, notice);
+            } catch (Exception e) {
+                toast(c, "失败：" + msg(e));
+            } finally {
+                done.run();
+            }
+        }, "action-compress").start();
     }
 
     private static void transcribe(Context c, Uri uri, String mime, Runnable done) {

@@ -105,6 +105,10 @@ final class Update {
         } finally {
             c.disconnect();
         }
+        if (info.size > 0 && apk.length() != info.size) {
+            apk.delete();
+            throw new java.io.IOException("download incomplete");
+        }
         return apk;
     }
 

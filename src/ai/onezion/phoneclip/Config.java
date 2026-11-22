@@ -18,6 +18,11 @@ final class Config {
         return clean(prefs(c).getString("token", ""));
     }
 
+    static long lastRev(Context c) { return prefs(c).getLong("lastRev", -1); }
+    static void setLastRev(Context c, long rev) { prefs(c).edit().putLong("lastRev", rev).apply(); }
+    static String lastServer(Context c) { return prefs(c).getString("lastServer", ""); }
+    static void setLastServer(Context c, String s) { prefs(c).edit().putString("lastServer", s).apply(); }
+
     static boolean enabled(Context c) {
         return prefs(c).getBoolean("enabled", false);
     }

@@ -105,6 +105,16 @@ public class MainActivity extends Activity {
                 new int[] { 0xFF132238, BG, BG });
         root.setBackground(bg);
 
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top;
+            if (Build.VERSION.SDK_INT >= 30) {
+                top = insets.getInsets(android.view.WindowInsets.Type.statusBars()).top;
+            } else {
+                top = insets.getSystemWindowInsetTop();
+            }
+            v.setPadding(dp(20), dp(24) + top, dp(20), dp(32));
+            return insets;
+        });
         root.addView(header());
         root.addView(connectionCard());
         root.addView(sendCard());
@@ -382,14 +392,14 @@ public class MainActivity extends Activity {
     }
 
     private void runSelfTest() {
+        Config.save(this, serverField.getText().toString(), tokenField.getText().toString());
         statusView.setText("自检中…");
         new Thread(() -> {
             StringBuilder out = new StringBuilder();
             boolean allOk = true;
 
             boolean storage = Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager();
-            out.append(storage ? "✓ 全盘访问\n" : "✗ 全盘访问未开启\n");
-            allOk &= storage;
+            out.append(storage ? "✓ 全盘访问\n" : "⚠ 全盘访问未开启（Sidecar 不可用）\n");
 
             boolean service = Config.enabled(this)
                     && ClipService.isRunning(this);
@@ -638,11 +648,15 @@ public class MainActivity extends Activity {
                     Manifest.permission.READ_MEDIA_IMAGES,
                     Manifest.permission.POST_NOTIFICATIONS,
             }, 1);
+        } else if (Build.VERSION.SDK_INT >= 29) {
+            requestPermissions(new String[] {
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+            }, 1);
         }
     }
 
     private void refresh() {
-        boolean running = Config.enabled(this);
+        boolean running = Config.enabled(this) && ClipService.isRunning(this);
         if (statusText != null) statusText.setText(running ? "运行中" : "已停止");
         if (statusDot != null) {
             GradientDrawable dot = new GradientDrawable();

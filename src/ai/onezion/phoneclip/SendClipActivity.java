@@ -15,8 +15,9 @@ public class SendClipActivity extends Activity {
         super.onCreate(state);
     }
 
-    @Override protected void onResume() {
-        super.onResume();
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (!hasFocus) return;
         if (sent) return;
         sent = true;
         new Thread(() -> {
