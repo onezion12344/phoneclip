@@ -114,7 +114,7 @@ public class ClipService extends Service {
             }
             if (Config.recOn(this) && hour >= Config.recHour(this)
                     && Config.lastRecRun(this) < today) {
-                Jobs.recorderSync(this);
+                Jobs.recorderSync(this, false);
             }
         } catch (Exception e) {
             Log.w(TAG, "daily: " + e);
@@ -160,7 +160,7 @@ public class ClipService extends Service {
                 Log.w(TAG, "dumptrans: " + e);
             }
         });
-        if ("rectest".equals(action)) bg.post(() -> Jobs.recorderSync(this));
+        if ("rectest".equals(action)) bg.post(() -> Jobs.recorderSync(this, true));
         if ("transcribetest".equals(action)) {
             String path = intent.getStringExtra("path");
             if (path != null) bg.post(() -> transcribeFile(new File(path)));
@@ -331,7 +331,7 @@ public class ClipService extends Service {
                 if (!running) return;
                 Log.w(TAG, "pull: " + e);
                 sleep(backoff);
-                backoff = Math.min(backoff * 2, 60000);
+                backoff = Math.min(backoff * 2, 10000);
             }
         }
     }

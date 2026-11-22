@@ -50,10 +50,11 @@ final class Jobs {
         }
     }
 
-    static void recorderSync(Context ctx) {
+    static void recorderSync(Context ctx, boolean force) {
         try {
-            long since = Config.lastRecRun(ctx);
+            long since = force ? startOfToday() : Config.lastRecRun(ctx);
             List<File> files = recordingsSince(ctx, since);
+            android.util.Log.i(TAG, "recorder: since=" + since + " found=" + files.size());
             String mode = Config.recMode(ctx);
             for (File f : files) {
                 String base = stripExt(f.getName());
@@ -79,8 +80,33 @@ final class Jobs {
         }
     }
 
+    private static final String[] RECORDING_DIRS = {
+            "/sdcard/Recordings", "/sdcard/Recordings/voice", "/sdcard/MySounds",
+            "/sdcard/DCIM/Recordings", "/sdcard/Music/Recordings",
+    };
+    private static final String[] AUDIO_EXT = {
+            ".m4a", ".mp3", ".aac", ".wav", ".amr", ".ogg", ".opus",
+    };
+
+    /** MediaStore only exposes files the app owns without READ_MEDIA_AUDIO, so the
+     *  recorder directories are also scanned directly (all-files access is granted). */
     private static List<File> recordingsSince(Context ctx, long sinceSec) {
         List<File> out = new ArrayList<>();
+        for (String dir : RECORDING_DIRS) {
+            File[] files = new File(dir).listFiles();
+            if (files == null) continue;
+            for (File f : files) {
+                if (!f.isFile() || f.length() == 0) continue;
+                if (f.lastModified() / 1000 < sinceSec) continue;
+                String n = f.getName().toLowerCase();
+                boolean audio = false;
+                for (String ext : AUDIO_EXT) {
+                    if (n.endsWith(ext)) { audio = true; break; }
+                }
+                if (audio && out.size() < 5) out.add(f);
+            }
+        }
+        if (!out.isEmpty()) return out;
         String[] cols = { MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA,
                 MediaStore.Audio.Media.DATE_ADDED };
         String sel = MediaStore.Audio.Media.DATE_ADDED + " > ?";

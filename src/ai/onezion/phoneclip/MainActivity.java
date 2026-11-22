@@ -1030,11 +1030,13 @@ public class MainActivity extends Activity {
             requestPermissions(new String[] {
                     Manifest.permission.READ_MEDIA_IMAGES,
                     Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+                    Manifest.permission.READ_MEDIA_AUDIO,
                     Manifest.permission.POST_NOTIFICATIONS,
             }, 1);
         } else if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[] {
                     Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_AUDIO,
                     Manifest.permission.POST_NOTIFICATIONS,
             }, 1);
         } else if (Build.VERSION.SDK_INT >= 29) {
