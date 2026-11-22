@@ -111,6 +111,22 @@ else
   no "compression output missing"
 fi
 
+echo "== audio compression (AAC 96k)"
+rm -f "$HOME/Downloads/PhoneClip/pc_test-96k.m4a"
+"${ADB[@]}" shell am broadcast -n $PKG/.CmdReceiver --es token "$TOKEN" \
+  --es action compressaudiotest --es path /sdcard/Download/pc_test.m4a >/dev/null
+for i in $(seq 1 60); do
+  [ -f "$HOME/Downloads/PhoneClip/pc_test-96k.m4a" ] && break
+  sleep 1
+done
+if [ -f "$HOME/Downloads/PhoneClip/pc_test-96k.m4a" ]; then
+  BR=$(ffprobe -v error -select_streams a:0 -show_entries stream=bit_rate -of csv=p=0 \
+       "$HOME/Downloads/PhoneClip/pc_test-96k.m4a" | head -1)
+  [ -n "$BR" ] && [ "$BR" -le 120000 ] && ok "audio bitrate=$BR" || no "audio bitrate=$BR"
+else
+  no "audio compression output missing"
+fi
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 [ "$fail" = "0" ]

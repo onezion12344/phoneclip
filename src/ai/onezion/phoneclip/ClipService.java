@@ -120,9 +120,24 @@ public class ClipService extends Service {
             String path = intent.getStringExtra("path");
             if (path != null) bg.post(() -> transcribeFile(new File(path)));
         }
+        if ("compressaudiotest".equals(action)) {
+            String path = intent.getStringExtra("path");
+            if (path != null) bg.post(() -> {
+                File f = new File(path);
+                String base = f.getName();
+                int dot = base.lastIndexOf('.');
+                if (dot > 0) base = base.substring(0, dot);
+                compressAudioAndSend(Uri.fromFile(f), base);
+            });
+        }
         if ("compresstest".equals(action)) {
             String path = intent.getStringExtra("path");
             if (path != null) bg.post(() -> compressFile(new File(path)));
+        }
+        if ("compressaudio".equals(action)) {
+            String uri = intent.getStringExtra("uri");
+            String name = intent.getStringExtra("name");
+            if (uri != null) bg.post(() -> compressAudioAndSend(Uri.parse(uri), name));
         }
         if ("compress".equals(action)) {
             String uri = intent.getStringExtra("uri");
@@ -450,6 +465,20 @@ public class ClipService extends Service {
         } catch (Exception e) {
             Log.w(TAG, "share test", e);
             note("share test failed: " + e.getClass().getSimpleName());
+        }
+    }
+
+    private void compressAudioAndSend(Uri uri, String name) {
+        try {
+            note("正在压缩音频…");
+            File out = AudioCompressor.compress(this, uri, name == null ? "audio" : name);
+            ArrayList<Uri> uris = new ArrayList<>();
+            uris.add(Uri.fromFile(out));
+            ShareActivity.copyAndPublish(this, uris);
+            note("音频已压缩并发送（" + out.length() / 1024 + " KB）");
+        } catch (Exception e) {
+            Log.w(TAG, "compressaudio", e);
+            note("音频压缩失败：" + e.getClass().getSimpleName());
         }
     }
 

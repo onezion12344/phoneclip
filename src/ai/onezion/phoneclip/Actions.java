@@ -35,9 +35,13 @@ final class Actions {
         String transcribe = Config.tSync(app) ? "转写（并同步文本到 Mac）" : "转写";
         ArrayList<String> items = new ArrayList<>();
         items.add("发送到 Mac");
-        items.add("只保留音频");
         boolean video = mime.startsWith("video/");
-        if (video) items.add("压缩到 720p 并发送");
+        if (video) {
+            items.add("只保留音频");
+            items.add("压缩到 720p 并发送");
+        } else {
+            items.add("压缩音频并发送");
+        }
         items.add(transcribe);
 
         AlertDialog dialog = new AlertDialog.Builder(
@@ -47,7 +51,8 @@ final class Actions {
                     String label = items.get(which);
                     if (label.equals("发送到 Mac")) send(app, uris);
                     else if (label.equals("只保留音频")) audioOnly(app, uris.get(0), mime);
-                    else if (label.startsWith("压缩")) compress(app, uris.get(0));
+                    else if (label.startsWith("压缩到")) compress(app, uris.get(0));
+                    else if (label.startsWith("压缩音频")) compressAudio(app, uris.get(0));
                     else transcribe(app, uris.get(0), mime);
                 })
                 .create();
@@ -92,6 +97,15 @@ final class Actions {
         toast(c, "正在压缩到 720p（长视频需要几分钟）…");
         Intent i = new Intent(c, ClipService.class);
         i.putExtra("action", "compress");
+        i.putExtra("uri", uri.toString());
+        i.putExtra("name", baseName(c, uri));
+        ShareActivity.startServiceSafely(c, i);
+    }
+
+    private static void compressAudio(Context c, Uri uri) {
+        toast(c, "正在压缩音频（AAC 96k）…");
+        Intent i = new Intent(c, ClipService.class);
+        i.putExtra("action", "compressaudio");
         i.putExtra("uri", uri.toString());
         i.putExtra("name", baseName(c, uri));
         ShareActivity.startServiceSafely(c, i);
