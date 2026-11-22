@@ -4,7 +4,7 @@
 Runs a throwaway instance of the app on a private port, so it can run while the
 real app is up. Only touches the clipboard temporarily (restored at the end).
 """
-import json, os, shutil, subprocess, sys, tempfile, threading, time
+import glob, json, os, shutil, subprocess, sys, tempfile, threading, time
 import urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -205,6 +205,58 @@ def main():
         check("70 MB upload accepted", st == 200 and size == len(payload), (st, size))
         if os.path.exists(big):
             os.remove(big)
+
+        # --- the real phone-side transport (Http.java), not a Python stand-in
+        jar = sorted(glob.glob(
+            "/opt/homebrew/share/android-commandlinetools/platforms/android-*/android.jar"))
+        compiled = os.path.join(ROOT, "build/compiled")
+        if jar and os.path.isdir(compiled) and shutil.which("javac"):
+            src = os.path.join(tmp, "java", "ai", "onezion", "phoneclip")
+            os.makedirs(src, exist_ok=True)
+            open(os.path.join(src, "HttpE2E.java"), "w").write("""
+package ai.onezion.phoneclip;
+
+public class HttpE2E {
+    public static void main(String[] a) throws Exception {
+        String base = a[0], token = a[1];
+        String ping = Http.getTextOrNull(base + "/v1/ping", token);
+        if (ping == null || !ping.contains("ok")) throw new AssertionError("ping");
+        byte[] body = new byte[1 << 20];
+        for (int i = 0; i < body.length; i++) body[i] = (byte) (i * 31);
+        Http.post(base + "/v1/file?name=server-test-prod.bin&silent=1",
+                token, "application/octet-stream", body);
+        boolean rejected = false;
+        try {
+            Http.getTextOrNull(base + "/v1/ping", "wrong-token");
+            rejected = false;
+        } catch (Exception e) {
+            rejected = true;
+        }
+        if (!rejected) throw new AssertionError("wrong token was accepted");
+        System.out.println("PROD_OK");
+    }
+}
+""")
+            out = os.path.join(tmp, "jclasses")
+            cp = jar[-1] + ":" + compiled
+            r = subprocess.run(["javac", "--release", "17", "-cp", cp, "-d", out,
+                                os.path.join(src, "HttpE2E.java")],
+                               capture_output=True, text=True)
+            if r.returncode == 0:
+                r = subprocess.run(["java", "-cp", cp + ":" + out,
+                                    "ai.onezion.phoneclip.HttpE2E", BASE, token],
+                                   capture_output=True, text=True, timeout=90)
+                check("production Http client talks to the server",
+                      r.returncode == 0 and "PROD_OK" in r.stdout,
+                      (r.stdout[-120:], r.stderr[-200:]))
+                f = os.path.join(DOWNLOADS, "server-test-prod.bin")
+                check("production client uploaded a file", os.path.exists(f))
+                if os.path.exists(f):
+                    os.remove(f)
+            else:
+                check("production Http client compiled", False, r.stderr[-200:])
+        else:
+            print("SKIP  production Http client (javac or android.jar unavailable)")
 
         stop.set()
     finally:
