@@ -22,6 +22,11 @@ if [ -z "$SERIAL" ]; then
   exit 1
 fi
 ADB=(adb -s "$SERIAL")
+# Doze freezes the long-poll, which makes every sidecar probe time out. Keep the
+# screen on while USB is attached for the duration of the test, then restore.
+"${ADB[@]}" shell svc power stayon usb >/dev/null 2>&1 || true
+"${ADB[@]}" shell input keyevent 224 >/dev/null 2>&1 || true
+trap '"${ADB[@]}" shell svc power stayon false >/dev/null 2>&1 || true' EXIT
 TOKEN=$(python3 -c 'import json;print(json.load(open("'"$APP"'/config.json"))["token"])')
 
 # The test points the phone at a mock endpoint. Back up the real settings through the
