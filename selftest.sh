@@ -104,15 +104,16 @@ if [ "$(reachable "$PHONE_IP")" = "0" ]; then
   "${ADB[@]}" shell am start -n $PKG/.MainActivity \
     --es tbase "http://$PHONE_IP:$PORT" --es tkey mock --es tmodel mock --ez tsync true >/dev/null
 fi
-rm -f "$TDIR/pc_test.m4a.txt"
+rm -f "$TDIR"/*-pc_test.m4a.txt "$TDIR/pc_test.m4a.txt"
 "${ADB[@]}" shell am broadcast -n $PKG/.CmdReceiver --es token "$TOKEN" \
   --es action transcribetest --es path /sdcard/Download/pc_test.m4a >/dev/null
+TRANSCRIPT=""
 for i in $(seq 1 30); do
-  [ -f "$TDIR/pc_test.m4a.txt" ] && break
+  TRANSCRIPT=$(ls -t "$TDIR"/*-pc_test.m4a.txt 2>/dev/null | head -1)
+  [ -n "$TRANSCRIPT" ] && break
   sleep 1
 done
-if [ -f "$TDIR/pc_test.m4a.txt" ] \
-   && grep -q "mock transcript" "$TDIR/pc_test.m4a.txt"; then
+if [ -n "$TRANSCRIPT" ] && grep -q "mock transcript" "$TRANSCRIPT"; then
   ok "transcription + sync"
 else
   no "transcription (see logcat PhoneClip)"

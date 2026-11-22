@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(BG);
         setContentView(buildUi());
         applyIntent(getIntent());
+        if (Config.enabled(this) && !ClipService.isRunning(this)) ClipService.start(this);
         refresh();
     }
 
@@ -643,7 +644,13 @@ public class MainActivity extends Activity {
     }
 
     private void requestPermissions() {
-        if (Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= 34) {
+            requestPermissions(new String[] {
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+                    Manifest.permission.POST_NOTIFICATIONS,
+            }, 1);
+        } else if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[] {
                     Manifest.permission.READ_MEDIA_IMAGES,
                     Manifest.permission.POST_NOTIFICATIONS,

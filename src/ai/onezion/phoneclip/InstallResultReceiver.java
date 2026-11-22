@@ -7,7 +7,10 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.Manifest;
 import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.widget.Toast;
 
 public class InstallResultReceiver extends BroadcastReceiver {
@@ -23,6 +26,11 @@ public class InstallResultReceiver extends BroadcastReceiver {
             }
         } else if (status == PackageInstaller.STATUS_SUCCESS) {
             // installing an update kills the bridge process; offer a one-tap restart
+            if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(
+                    Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(context, "更新完成，请打开 PhoneClip 恢复同步", Toast.LENGTH_LONG).show();
+                return;
+            }
             try {
                 NotificationManager nm = context.getSystemService(NotificationManager.class);
                 nm.createNotificationChannel(new NotificationChannel(

@@ -82,8 +82,10 @@ final class Transcription {
 
     /** Optional: copy the transcript into the Mac's Documents/PhoneClip/Transcripts. */
     static void syncToMac(Context ctx, String name, String text) throws Exception {
+        String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US)
+                .format(new java.util.Date());
         String url = Config.server(ctx) + "/v1/file?name="
-                + URLEncoder.encode(name, StandardCharsets.UTF_8.name())
+                + URLEncoder.encode(stamp + "-" + name, StandardCharsets.UTF_8.name())
                 + "&silent=1&dir=transcripts";
         Http.post(url, Config.token(ctx), "text/plain; charset=utf-8",
                 text.getBytes(StandardCharsets.UTF_8));

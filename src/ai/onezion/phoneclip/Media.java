@@ -98,13 +98,18 @@ final class Media {
                 throw new Exception("音轨格式 " + mime + " 暂不支持直接抽取");
             }
 
+            // an empty audio track makes MediaMuxer.stop() throw; fail with a real reason
+            ex.selectTrack(track);
+            ByteBuffer probe = ByteBuffer.allocateDirect(1 << 16);
+            if (ex.readSampleData(probe, 0) < 0) throw new Exception("音轨没有数据");
+            ex.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+
             File dir = new File(ctx.getFilesDir(), "derived");
             dir.mkdirs();
             out = new File(dir, baseName + ".m4a");
             mux = new MediaMuxer(out.getPath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
             int dst = mux.addTrack(format);
             mux.start();
-            ex.selectTrack(track);
 
             ByteBuffer buf = ByteBuffer.allocateDirect(4 << 20);
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -114,7 +119,9 @@ final class Media {
                 info.offset = 0;
                 info.size = size;
                 info.presentationTimeUs = ex.getSampleTime();
-                info.flags = ex.getSampleFlags();
+                // extractor sample flags are not muxer flags: 2/4 mean encrypted/partial
+                info.flags = (ex.getSampleFlags() & MediaExtractor.SAMPLE_FLAG_SYNC) != 0
+                        ? MediaCodec.BUFFER_FLAG_KEY_FRAME : 0;
                 mux.writeSampleData(dst, buf, info);
                 ex.advance();
             }

@@ -111,10 +111,18 @@ final class AudioCompressor {
                         }
                         dec.releaseOutputBuffer(pendingDecOut, false);
                         pendingDecOut = -1;
-                    } else if (pendingEos) {
-                        pendingEos = false;
+                    }
+                }
+
+                // the decoder's last buffer often carries data *and* EOS; the EOS must
+                // follow it as a separate empty buffer, and the decoder will not hand
+                // out another output, so this cannot live inside the block above.
+                if (pendingEos && !encoderEosSent) {
+                    int encIn = enc.dequeueInputBuffer(0);
+                    if (encIn >= 0) {
                         enc.queueInputBuffer(encIn, 0, 0, 0,
                                 MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                        pendingEos = false;
                         encoderEosSent = true;
                     }
                 }
