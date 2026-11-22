@@ -9,9 +9,9 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 echo "==> compiling swift"
-swiftc -O "$HERE/Sources/Clipboard.swift" "$HERE/Sources/Server.swift" "$HERE/Sources/main.swift" \
+swiftc -O "$HERE/Sources/"*.swift \
   -o "$APP/Contents/MacOS/PhoneClip" \
-  -framework AppKit -framework Network -framework ServiceManagement
+  -framework AppKit -framework Network
 
 cp "$HERE/Info.plist" "$APP/Contents/Info.plist"
 

@@ -17,6 +17,7 @@
 | 发当前剪贴板 | 快捷设置磁贴「发送剪贴板」 | 文字/图片/文件都可以；Android 13+ 禁止后台读剪贴板，所以是点一下 |
 | 在 App 里打一段字发过去 | App 内文本框 | 粘贴长文、链接、验证码都行 |
 | 自动更新 | 无需操作 | 每 24h 检查 GitHub Release，弹通知，点一下安装 |
+| 浏览手机文件（Sidecar） | 菜单栏 → 「手机文件…」 | 复用同一条连接，不需要 ADB；双击目录、选中下载到 `~/Downloads/PhoneClip` |
 
 ## 长这样
 
@@ -74,7 +75,8 @@ adb shell am start -n ai.onezion.phoneclip/.MainActivity \
 - **拍照/截图** → 什么都不用做，Mac 右上角会弹「照片已从手机复制」；
 - **发文件** → 相册、文件管理器、微信里选「分享」→ OneZion Clip；也可以直接在 App 里点「选择文件…」（任意格式）或「选择照片…」；
 - **发文字** → 复制后下拉点「发送剪贴板」磁贴，或在 App 文本框里输入；
-- **相册范围** → App 里勾选「Auto-sync all photos」；关掉则只同步 `DCIM/Camera`。
+- **相册范围** → App 里勾选「Auto-sync all photos」；关掉则只同步 `DCIM/Camera`；
+- **浏览手机文件** → Mac 菜单栏 →「手机文件…」；第一次要在手机 App 里打开「所有文件访问」（Sidecar 才能读全盘）。
 
 ## 更新
 
@@ -104,6 +106,8 @@ gh release create v1.4.0 build/PhoneClip.apk \
 - **手机 → Mac 的剪贴板不会自动同步**：Android 13+ 禁止后台 App 读剪贴板，系统日志会直接写 `Denying clipboard access`；无障碍、旧 targetSdk、root/shell 在这台 ColorOS 16 上都被拒。所以做成了磁贴点一下。
 - 微信等只接受文本/图片的输入框，粘不出「文件」，这是接收方的限制。
 - 单次分享上限 200 MB。
+- Sidecar 需要手机端开启「所有文件访问」，且只在你自己的局域网/Tailscale 内可见；`Android/data`、`Android/obb` 不暴露。
+- Sidecar 只在手机服务运行时可用（前台服务被系统杀掉就暂时不可浏览）。
 - 只有 Android；iOS 没有对应实现。
 - ColorOS 的自启动开关不开放 adb，需要手动打开一次。
 

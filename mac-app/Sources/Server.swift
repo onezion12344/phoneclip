@@ -119,7 +119,48 @@ final class PhoneClipServer {
     }
     private var waiters: [UUID: Waiter] = [:]
 
+    private struct PendingCommand {
+        let id: String
+        let op: String
+        let path: String
+        let completion: ([String: Any]) -> Void
+        let timeout: DispatchWorkItem
+    }
+    private var commands: [PendingCommand] = []
+    private var inFlight: [String: PendingCommand] = [:]
+
     var onStateChange: (() -> Void)?
+
+    // MARK: sidecar
+
+    func listPhone(path: String, completion: @escaping ([String: Any]) -> Void) {
+        queue.async { self.enqueue(op: "list", path: path, completion: completion) }
+    }
+
+    func fetchPhone(path: String, completion: @escaping ([String: Any]) -> Void) {
+        queue.async { self.enqueue(op: "get", path: path, completion: completion) }
+    }
+
+    private func enqueue(op: String, path: String, completion: @escaping ([String: Any]) -> Void) {
+        let id = UUID().uuidString
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, let c = self.inFlight.removeValue(forKey: id) else { return }
+            self.commands.removeAll { $0.id == id }
+            c.completion(["ok": false, "error": "timeout"])
+        }
+        inFlight[id] = PendingCommand(id: id, op: op, path: path,
+                                      completion: completion, timeout: timeout)
+        commands.append(inFlight[id]!)
+        queue.asyncAfter(deadline: .now() + 25, execute: timeout)
+        serveWaiting()
+    }
+
+    private func serveWaiting() {
+        guard !commands.isEmpty, let (wid, w) = waiters.first else { return }
+        waiters[wid] = nil
+        w.timeout?.cancel()
+        respondStateOrCommand(w.conn)
+    }
 
     init(rootDir: String, portOverride: Int? = nil) {
         self.rootDir = rootDir
@@ -250,6 +291,12 @@ final class PhoneClipServer {
                 respond(w.conn, status: 204, body: Data())
                 waiters[id] = nil
             }
+            for (id, c) in Array(inFlight) {
+                c.timeout.cancel()
+                c.completion(["ok": false, "error": "stopped"])
+                inFlight[id] = nil
+            }
+            commands.removeAll()
         }
     }
 
@@ -293,8 +340,9 @@ final class PhoneClipServer {
         for (id, w) in Array(waiters) where w.since < rev {
             w.timeout?.cancel()
             waiters[id] = nil
-            respondState(w.conn)
+            respondStateOrCommand(w.conn)
         }
+        serveWaiting()
     }
 
     // MARK: HTTP
@@ -345,6 +393,8 @@ final class PhoneClipServer {
             handleClipGet(req, conn)
         case ("GET", "/v1/clip/image"):
             handleClipImage(conn)
+        case ("POST", "/v1/sidecar/result"):
+            handleSidecarResult(req, conn)
         default:
             respond(conn, status: 404, body: Data())
         }
@@ -384,6 +434,10 @@ final class PhoneClipServer {
         let batch = req.query["batch"] ?? ""
         let total = Int(req.query["n"] ?? "0") ?? 0
         let idx = Int(req.query["i"] ?? "0") ?? 0
+        if (req.query["silent"] ?? "") == "1" {
+            respond(conn, status: 200, body: Data("ok".utf8))
+            return
+        }
         if batch.isEmpty || total <= 1 {
             if let count = DispatchQueue.main.sync { bridge.writeFiles([path]) } {
                 ignoreCount = count
@@ -444,7 +498,7 @@ final class PhoneClipServer {
         let since = Int64(req.query["rev"] ?? "-1") ?? -1
         var wait = Int(req.query["wait"] ?? "0") ?? 0
         if wait > 300 { wait = 300 }
-        if wait > 0 && since >= rev {
+        if wait > 0 && since >= rev && commands.isEmpty {
             let id = UUID()
             let timeout = DispatchWorkItem { [weak self] in
                 guard let self, let w = self.waiters[id] else { return }
@@ -455,18 +509,33 @@ final class PhoneClipServer {
             queue.asyncAfter(deadline: .now() + .seconds(wait), execute: timeout)
             return
         }
-        respondState(conn)
+        respondStateOrCommand(conn)
     }
 
-    private func respondState(_ conn: NWConnection) {
-        guard kind != "" else {
-            respond(conn, status: 204, body: Data())
-            return
-        }
+    private func respondStateOrCommand(_ conn: NWConnection) {
         var obj: [String: Any] = ["rev": rev, "kind": kind]
         if kind == "text" { obj["text"] = text }
         if kind == "image" { obj["url"] = "/v1/clip/image?rev=\(rev)" }
+        if !commands.isEmpty {
+            let c = commands.removeFirst()
+            obj["cmd"] = ["id": c.id, "op": c.op, "path": c.path]
+        }
+        if kind == "" && obj["cmd"] == nil {
+            respond(conn, status: 204, body: Data())
+            return
+        }
         respondJSON(conn, obj)
+    }
+
+    private func handleSidecarResult(_ req: HTTPRequest, _ conn: NWConnection) {
+        let id = req.query["id"] ?? ""
+        guard let cmd = inFlight.removeValue(forKey: id) else {
+            respond(conn, status: 404, body: Data()); return
+        }
+        cmd.timeout.cancel()
+        let obj = (try? JSONSerialization.jsonObject(with: req.body)) as? [String: Any] ?? [:]
+        cmd.completion(obj)
+        respond(conn, status: 200, body: Data("ok".utf8))
     }
 
     private func handleClipImage(_ conn: NWConnection) {

@@ -15,6 +15,7 @@ import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.Settings;
 import android.text.InputType;
 import android.view.Gravity;
@@ -47,6 +48,7 @@ public class MainActivity extends Activity {
     private EditText serverField;
     private EditText tokenField;
     private TextView statusView;
+    private TextView filesAccessView;
     private View statusDot;
     private TextView statusText;
 
@@ -274,6 +276,11 @@ public class MainActivity extends Activity {
         return card.box;
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (filesAccessView != null) filesAccessView.setText(filesAccessLabel());
+    }
+
     private View aboutCard() {
         Card card = card(GOLD);
         card.content.addView(sectionTitle("关于"));
@@ -286,6 +293,11 @@ public class MainActivity extends Activity {
         row.addView(pill("检查更新", false, v -> checkUpdates()));
         card.content.addView(row);
 
+        filesAccessView = text(filesAccessLabel(), 13, MUTED);
+        filesAccessView.setPadding(dp(4), dp(14), dp(4), dp(2));
+        filesAccessView.setOnClickListener(v -> openAllFilesAccess());
+        card.content.addView(filesAccessView);
+
         TextView settings = text("打开应用设置（自启动 / 后台权限）", 13, MUTED);
         settings.setPadding(dp(4), dp(14), dp(4), dp(2));
         settings.setOnClickListener(v -> {
@@ -296,6 +308,27 @@ public class MainActivity extends Activity {
         });
         card.content.addView(settings);
         return card.box;
+    }
+
+    private String filesAccessLabel() {
+        boolean ok = Build.VERSION.SDK_INT < 30
+                || Environment.isExternalStorageManager();
+        return ok ? "所有文件访问：已开启（Sidecar 可用）"
+                  : "所有文件访问：未开启（点击开启，供 Mac 浏览手机文件）";
+    }
+
+    private void openAllFilesAccess() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                startActivity(new Intent(
+                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Exception e) {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                } catch (Exception ignored) {}
+            }
+        }
     }
 
     // ---- design helpers ----------------------------------------------------

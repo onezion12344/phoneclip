@@ -4,6 +4,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var server: PhoneClipServer!
     private var statusItem: NSStatusItem!
     private var prefsWindow: NSWindow?
+    private var browser: PhoneBrowserController?
     private var portField: NSTextField!
     private var tokenField: NSTextField!
 
@@ -61,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         add(menu, "打开照片文件夹", #selector(openPhotos))
         add(menu, "打开文件文件夹", #selector(openFiles))
+        add(menu, "手机文件…", #selector(openBrowser))
         menu.addItem(.separator())
         add(menu, "偏好设置…", #selector(openPrefs))
         add(menu, "重启服务", #selector(restart))
@@ -96,6 +98,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openFiles() {
         NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory() + "/Downloads/PhoneClip"))
+    }
+
+    @objc private func openBrowser() {
+        if browser == nil { browser = PhoneBrowserController(server: server) }
+        browser?.show()
     }
 
     @objc private func restart() {

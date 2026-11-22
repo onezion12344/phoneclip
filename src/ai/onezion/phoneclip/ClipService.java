@@ -24,6 +24,7 @@ import android.provider.MediaStore;
 import android.provider.Settings;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -268,6 +269,98 @@ public class ClipService extends Service {
             setImageClip(png);
         }
         lastRev = rev;
+
+        JSONObject cmd = o.optJSONObject("cmd");
+        if (cmd != null) handleCommand(cmd);
+    }
+
+    // ---- sidecar: phone files for the Mac app -------------------------------
+
+    private void handleCommand(JSONObject cmd) {
+        String id = cmd.optString("id", "");
+        String op = cmd.optString("op", "");
+        String path = cmd.optString("path", "");
+        try {
+            if ("list".equals(op)) {
+                postResult(id, listDir(path));
+            } else if ("get".equals(op)) {
+                File f = new File(path);
+                if (!f.isFile() || !allowedPath(f)) throw new Exception("not a file");
+                uploadSilent(this, f);
+                JSONObject res = new JSONObject();
+                res.put("ok", true);
+                res.put("name", f.getName());
+                res.put("size", f.length());
+                postResult(id, res);
+            } else {
+                JSONObject res = new JSONObject();
+                res.put("ok", false);
+                res.put("error", "unknown op");
+                postResult(id, res);
+            }
+        } catch (Exception e) {
+            try {
+                JSONObject res = new JSONObject();
+                res.put("ok", false);
+                res.put("error", e.getClass().getSimpleName());
+                postResult(id, res);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private JSONObject listDir(String path) throws Exception {
+        File dir = new File(path.isEmpty() ? "/sdcard" : path);
+        if (!dir.isDirectory() || !allowedPath(dir)) throw new Exception("denied");
+        File[] files = dir.listFiles();
+        JSONArray entries = new JSONArray();
+        if (files != null) {
+            java.util.Arrays.sort(files, (a, b) -> {
+                if (a.isDirectory() != b.isDirectory()) return a.isDirectory() ? -1 : 1;
+                return a.getName().compareToIgnoreCase(b.getName());
+            });
+            for (File f : files) {
+                String name = f.getName();
+                if (name.startsWith(".")) continue;
+                if (dir.getName().equals("Android")
+                        && (name.equals("data") || name.equals("obb"))) continue;
+                JSONObject e = new JSONObject();
+                e.put("name", name);
+                e.put("dir", f.isDirectory());
+                e.put("size", f.length());
+                e.put("mtime", f.lastModified() / 1000L);
+                entries.put(e);
+                if (entries.length() >= 2000) break;
+            }
+        }
+        JSONObject res = new JSONObject();
+        res.put("ok", true);
+        res.put("path", dir.getAbsolutePath());
+        res.put("entries", entries);
+        return res;
+    }
+
+    private boolean allowedPath(File f) throws Exception {
+        String p = f.getCanonicalPath();
+        return p.equals("/storage/emulated/0") || p.startsWith("/storage/emulated/0/");
+    }
+
+    private static String mimeOfPath(File f) {
+        String n = f.getName().toLowerCase();
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".png")) return "image/png";
+        if (n.endsWith(".mp4")) return "video/mp4";
+        if (n.endsWith(".m4a")) return "audio/mp4";
+        if (n.endsWith(".mp3")) return "audio/mpeg";
+        if (n.endsWith(".pdf")) return "application/pdf";
+        if (n.endsWith(".txt")) return "text/plain";
+        return "application/octet-stream";
+    }
+
+    private void postResult(String id, JSONObject res) throws Exception {
+        String url = Config.server(this) + "/v1/sidecar/result?id="
+                + URLEncoder.encode(id, StandardCharsets.UTF_8.name());
+        Http.post(url, Config.token(this), "application/json",
+                res.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private void sleep(int ms) {
@@ -429,6 +522,14 @@ public class ClipService extends Service {
                 + "&i=" + index + "&n=" + total;
         java.io.InputStream in = new java.io.FileInputStream(file);
         Http.postStream(url, Config.token(ctx), mime, in, file.length());
+    }
+
+    /** Sidecar download: save on the Mac without touching its clipboard. */
+    static void uploadSilent(Context ctx, File file) throws Exception {
+        String name = URLEncoder.encode(file.getName(), StandardCharsets.UTF_8.name());
+        String url = Config.server(ctx) + "/v1/file?name=" + name + "&silent=1";
+        java.io.InputStream in = new java.io.FileInputStream(file);
+        Http.postStream(url, Config.token(ctx), mimeOfPath(file), in, file.length());
     }
 
     private static String stripStamp(String name) {

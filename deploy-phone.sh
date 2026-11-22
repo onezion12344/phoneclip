@@ -53,11 +53,16 @@ echo "==> permissions"
 "${ADB[@]}" shell pm grant $PKG android.permission.POST_NOTIFICATIONS 2>/dev/null || true
 "${ADB[@]}" shell appops set $PKG READ_MEDIA_IMAGES allow 2>/dev/null || true
 "${ADB[@]}" shell appops set $PKG POST_NOTIFICATION allow 2>/dev/null || true
+"${ADB[@]}" shell appops set $PKG MANAGE_EXTERNAL_STORAGE allow 2>/dev/null || true
 "${ADB[@]}" shell appops set $PKG SYSTEM_ALERT_WINDOW allow 2>/dev/null || true
 "${ADB[@]}" shell dumpsys deviceidle whitelist +$PKG >/dev/null 2>&1 || true
 if ! "${ADB[@]}" shell dumpsys package $PKG 2>/dev/null | grep -q 'READ_MEDIA_IMAGES: granted=true'; then
   echo "!! 相册权限没能自动授予（非 root 的 ColorOS 限制）"
   echo "   请在手机上打开 OneZion Clip，点 Start 并允许「照片和视频」权限（只需一次）"
+fi
+
+if ! "${ADB[@]}" shell appops get $PKG MANAGE_EXTERNAL_STORAGE 2>/dev/null | grep -q allow; then
+  echo "!! 所有文件访问未开启：设置 → 应用 → 特殊权限 → 所有文件访问 → 允许 OneZion Clip"
 fi
 
 echo "==> configure + start"
