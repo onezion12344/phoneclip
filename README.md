@@ -158,4 +158,8 @@ phoneclip/
 
 目标设备：OnePlus Ace 3 Pro（ColorOS 16 / Android 16）、OnePlus Open（CPH2551）、macOS 15+。
 
-验证状态：Mac 端协议测试 16 项全绿；**手机端（OnePlus Ace 3 Pro）验收 5/5 通过**：侧车列表与下载、手机端转写并同步、720p 压缩、AAC 96k。
+验证状态（2026-11-23，OnePlus Ace 3 Pro，USB）：
+- 验收 5/5：侧车列表与下载、手机端转写并同步、720p 压缩、AAC 96k
+- 界面：底部 tab（连接/照片/录音/文件/设置），逐页截图确认
+- 照片每日 VLM observation：mock 端点端到端通过（请求含 39 KB 图片，observation 写入 Mac）
+- 录音每日同步：真实录音（/sdcard/Recordings）→ AAC 96k → 落到 Mac
