@@ -59,3 +59,9 @@ app binary makes the release exit 1 with the manifest untouched.
 - **Phone side not yet verified on a device** (both phones were offline on 2026-11-22):
   sidecar list/get, transcription, 720p/AAC compression, redesigned UI and icon.
   Run `./selftest.sh <serial>` or the in-app 「运行自检」 when a device is reachable.
+
+Verification status: the Mac side is covered by `tests/server_test.py` (14 assertions) and
+has been run as a shipped artifact (DMG cold start, OTA asset/hash/version). The Android
+features added in 1.4 — sidecar, in-app transcription, 720p/AAC compression, Material You UI —
+have NOT been executed on a phone yet. Do not describe them as device-tested until
+`selftest.sh` has actually passed on hardware.
