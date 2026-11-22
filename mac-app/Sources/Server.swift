@@ -563,15 +563,20 @@ final class PhoneClipServer {
             // the client's rev came from a previous process; make it reset
             obj["reset"] = true
         }
+        var sent: PendingCommand?
         if !commands.isEmpty {
             let c = commands.removeFirst()
+            sent = c
             obj["cmd"] = ["id": c.id, "op": c.op, "path": c.path]
         }
         if !fresh && !stale && obj["cmd"] == nil {
             respond(conn, status: 204, body: Data())
             return
         }
-        respondJSON(conn, obj)
+        respondJSON(conn, obj) { [weak self] in
+            // the socket died before the command could be written: keep it queued
+            if let c = sent { self?.commands.insert(c, at: 0) }
+        }
     }
 
     private func handleSidecarResult(_ req: HTTPRequest, _ conn: NWConnection) {
@@ -594,13 +599,15 @@ final class PhoneClipServer {
         respond(conn, status: 200, contentType: type, body: data)
     }
 
-    private func respondJSON(_ conn: NWConnection, _ obj: [String: Any]) {
+    private func respondJSON(_ conn: NWConnection, _ obj: [String: Any],
+                             onSendError: (() -> Void)? = nil) {
         let data = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data("{}".utf8)
-        respond(conn, status: 200, contentType: "application/json", body: data)
+        respond(conn, status: 200, contentType: "application/json", body: data,
+                onSendError: onSendError)
     }
 
     private func respond(_ conn: NWConnection, status: Int, contentType: String = "text/plain",
-                         body: Data) {
+                         body: Data, onSendError: (() -> Void)? = nil) {
         let reason: String
         switch status {
         case 200: reason = "OK"
@@ -619,7 +626,10 @@ final class PhoneClipServer {
         head += "Connection: close\r\n\r\n"
         var payload = Data(head.utf8)
         if status != 204 { payload.append(body) }
-        conn.send(content: payload, completion: .contentProcessed { _ in conn.cancel() })
+        conn.send(content: payload, completion: .contentProcessed { error in
+            if error != nil { onSendError?() }
+            conn.cancel()
+        })
     }
 
     // MARK: helpers

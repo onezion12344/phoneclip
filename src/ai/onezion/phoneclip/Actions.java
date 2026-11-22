@@ -165,9 +165,8 @@ final class Actions {
     private static File copyToDerived(Context ctx, Uri uri, String name) throws Exception {
         File dir = new File(ctx.getFilesDir(), "derived");
         dir.mkdirs();
-        String ext = "";
         String mime = ctx.getContentResolver().getType(uri);
-        if (mime != null && mime.contains("/")) ext = "." + mime.substring(mime.indexOf('/') + 1);
+        String ext = extFor(mime);
         File out = new File(dir, name + ext);
         try (InputStream in = ctx.getContentResolver().openInputStream(uri);
              FileOutputStream os = new FileOutputStream(out)) {
@@ -177,6 +176,22 @@ final class Actions {
             while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
         }
         return out;
+    }
+
+    private static String extFor(String mime) {
+        if (mime == null) return ".bin";
+        switch (mime) {
+            case "audio/mpeg": return ".mp3";
+            case "audio/mp4":
+            case "audio/m4a": return ".m4a";
+            case "audio/wav":
+            case "audio/x-wav": return ".wav";
+            case "audio/ogg":
+            case "audio/opus": return ".ogg";
+            case "audio/flac": return ".flac";
+            case "audio/aac": return ".aac";
+            default: return ".bin";
+        }
     }
 
     private static String baseName(Context ctx, Uri uri) {

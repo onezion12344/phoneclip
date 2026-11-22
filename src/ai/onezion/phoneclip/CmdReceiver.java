@@ -10,8 +10,9 @@ import android.content.Intent;
  */
 public class CmdReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
+        String expected = Config.token(context);
         String token = intent.getStringExtra("token");
-        if (token == null || !token.equals(Config.token(context))) {
+        if (expected.isEmpty() || token == null || !token.equals(expected)) {
             return;
         }
         Intent svc = new Intent(context, ClipService.class);
