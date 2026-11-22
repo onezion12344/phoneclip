@@ -1,11 +1,11 @@
 #!/bin/bash
-# Wait up to 4 hours for the Ace to become adb-visible, then run the device self-test.
+# Wait up to 12 hours for the Ace to become adb-visible, then run the device self-test.
 # Usage: tools/watch_phone.sh [serial]
 LOG=/tmp/pc-watch.log
 : > "$LOG"
 echo "watch start $(date)" >> "$LOG"
 START=$SECONDS
-while [ $((SECONDS - START)) -lt 14400 ]; do
+while [ $((SECONDS - START)) -lt 43200 ]; do
   for s in $(adb devices | awk 'NR>1 && $2=="device"{print $1}'); do
     m=$(adb -s "$s" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
     if [ "$m" = "PJX110" ] || [ "$m" = "CPH2551" ]; then

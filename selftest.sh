@@ -24,6 +24,7 @@ fi
 ADB=(adb -s "$SERIAL")
 TOKEN=$(python3 -c 'import json;print(json.load(open("'"$APP"'/config.json"))["token"])')
 TSIP=$(python3 -c 'import json;print(json.load(open("'"$APP"'/config.json"))["listen_ip"])')
+TDIR=$(python3 -c 'import json,os;c=json.load(open("'"$APP"'/config.json"));print(c.get("transcript_dir") or os.path.expanduser("~/Documents/PhoneClip/Transcripts"))')
 LANIP=$(ipconfig getifaddr en0 2>/dev/null || true)
 BASE="http://127.0.0.1:47411"
 
@@ -103,15 +104,15 @@ if [ "$(reachable "$PHONE_IP")" = "0" ]; then
   "${ADB[@]}" shell am start -n $PKG/.MainActivity \
     --es tbase "http://$PHONE_IP:$PORT" --es tkey mock --es tmodel mock --ez tsync true >/dev/null
 fi
-rm -f "$HOME/Documents/PhoneClip/Transcripts/pc_test.m4a.txt"
+rm -f "$TDIR/pc_test.m4a.txt"
 "${ADB[@]}" shell am broadcast -n $PKG/.CmdReceiver --es token "$TOKEN" \
   --es action transcribetest --es path /sdcard/Download/pc_test.m4a >/dev/null
 for i in $(seq 1 30); do
-  [ -f "$HOME/Documents/PhoneClip/Transcripts/pc_test.m4a.txt" ] && break
+  [ -f "$TDIR/pc_test.m4a.txt" ] && break
   sleep 1
 done
-if [ -f "$HOME/Documents/PhoneClip/Transcripts/pc_test.m4a.txt" ] \
-   && grep -q "mock transcript" "$HOME/Documents/PhoneClip/Transcripts/pc_test.m4a.txt"; then
+if [ -f "$TDIR/pc_test.m4a.txt" ] \
+   && grep -q "mock transcript" "$TDIR/pc_test.m4a.txt"; then
   ok "transcription + sync"
 else
   no "transcription (see logcat PhoneClip)"
