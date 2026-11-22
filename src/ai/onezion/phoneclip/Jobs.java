@@ -33,8 +33,7 @@ final class Jobs {
             android.util.Log.i(TAG, "photo vlm: photo=" + (p == null ? "none" : p.name));
             if (p == null) return;
             byte[] jpeg = Media.jpegFromUri(ctx, p.uri, 1280, 85);
-            String text = Vision.observe(ctx, jpeg,
-                    "文件名 " + p.name + "，入库时间 " + p.dateAdded);
+            String text = Vision.observe(ctx, jpeg, photoMeta(ctx, p));
             android.util.Log.i(TAG, "photo vlm: text=" + text.length() + " ch");
             if (text.isEmpty()) return;
             String name = "obs-" + p.name.replaceAll("[^A-Za-z0-9._-]", "_") + ".txt";
@@ -59,7 +58,10 @@ final class Jobs {
             for (File f : files) {
                 String base = stripExt(f.getName());
                 if ("transcript".equals(mode)) {
-                    String text = Transcription.run(ctx, f, "audio/*");
+                    File audio = isVideo(f)
+                            ? Media.extractAudio(ctx, Uri.fromFile(f), base + "-audio")
+                            : f;
+                    String text = Transcription.run(ctx, audio, "audio/*");
                     if (text.isEmpty()) continue;
                     String name = base + ".txt";
                     Transcription.saveToDownloads(ctx, name, text);
@@ -69,7 +71,9 @@ final class Jobs {
                         Log.w(TAG, "rec sync: " + e);
                     }
                 } else {
-                    File out = AudioCompressor.compress(ctx, Uri.fromFile(f), base);
+                    File out = isVideo(f)
+                            ? VideoCompressor.compress(ctx, Uri.fromFile(f), base)
+                            : AudioCompressor.compress(ctx, Uri.fromFile(f), base);
                     ClipService.uploadSilent(ctx, out);
                 }
                 Config.setLastRecName(ctx, f.getName());
@@ -87,6 +91,9 @@ final class Jobs {
     private static final String[] AUDIO_EXT = {
             ".m4a", ".mp3", ".aac", ".wav", ".amr", ".ogg", ".opus",
     };
+    private static final String[] VIDEO_EXT = {
+            ".mp4", ".mov", ".mkv", ".3gp", ".webm", ".m4v",
+    };
 
     /** MediaStore only exposes files the app owns without READ_MEDIA_AUDIO, so the
      *  recorder directories are also scanned directly (all-files access is granted). */
@@ -98,12 +105,7 @@ final class Jobs {
             for (File f : files) {
                 if (!f.isFile() || f.length() == 0) continue;
                 if (f.lastModified() / 1000 < sinceSec) continue;
-                String n = f.getName().toLowerCase();
-                boolean audio = false;
-                for (String ext : AUDIO_EXT) {
-                    if (n.endsWith(ext)) { audio = true; break; }
-                }
-                if (audio && out.size() < 5) out.add(f);
+                if ((isAudio(f) || isVideo(f)) && out.size() < 5) out.add(f);
             }
         }
         if (!out.isEmpty()) return out;
@@ -128,6 +130,44 @@ final class Jobs {
             Log.w(TAG, "recorder query: " + e);
         }
         return out;
+    }
+
+    /** Name, capture/added time, size and pixel dimensions when the provider exposes them. */
+    private static String photoMeta(Context ctx, Media.Photo p) {
+        StringBuilder b = new StringBuilder("文件名 ").append(p.name)
+                .append("，入库时间 ").append(new java.text.SimpleDateFormat(
+                        "yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                        .format(new java.util.Date(p.dateAdded * 1000L)));
+        try (android.database.Cursor c = ctx.getContentResolver().query(p.uri,
+                new String[] { MediaStore.Images.Media.SIZE,
+                        MediaStore.Images.Media.WIDTH, MediaStore.Images.Media.HEIGHT,
+                        MediaStore.Images.Media.DATE_TAKEN },
+                null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                long size = c.getLong(0);
+                int w = c.getInt(1), h = c.getInt(2);
+                long taken = c.getLong(3);
+                if (size > 0) b.append("，").append(size / 1024).append(" KB");
+                if (w > 0 && h > 0) b.append("，").append(w).append("x").append(h);
+                if (taken > 0) b.append("，拍摄于 ").append(new java.text.SimpleDateFormat(
+                        "yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                        .format(new java.util.Date(taken)));
+            }
+        } catch (Exception ignored) {
+        }
+        return b.toString();
+    }
+
+    static boolean isAudio(File f) {
+        String n = f.getName().toLowerCase();
+        for (String ext : AUDIO_EXT) if (n.endsWith(ext)) return true;
+        return false;
+    }
+
+    static boolean isVideo(File f) {
+        String n = f.getName().toLowerCase();
+        for (String ext : VIDEO_EXT) if (n.endsWith(ext)) return true;
+        return false;
     }
 
     private static String stripExt(String name) {
