@@ -29,6 +29,8 @@
 |---|---|
 | <img src="docs/app.png" width="300" alt="App"> | <img src="docs/toast.png" width="420" alt="Mac toast"> |
 
+> 手机端截图是 1.0 版界面；1.4 起的 Material You 界面待补真机截图。
+
 ## 怎么工作
 
 ![架构](docs/flow.svg)
