@@ -23,10 +23,23 @@ final class Transcription {
         String base = Config.tBase(ctx);
         if (base.isEmpty()) throw new Exception("未配置转写端点");
         String boundary = "----PhoneClip" + System.nanoTime();
+        String fieldModel = fieldBytes(boundary, "model", Config.tModel(ctx));
+        String fieldFormat = fieldBytes(boundary, "response_format", "json");
+        String fileHead = "--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\""
+                + audio.getName() + "\"\r\n"
+                + "Content-Type: " + (mime == null ? "application/octet-stream" : mime)
+                + "\r\n\r\n";
+        String tail = "\r\n--" + boundary + "--\r\n";
+        long total = fieldModel.getBytes(StandardCharsets.UTF_8).length
+                + fieldFormat.getBytes(StandardCharsets.UTF_8).length
+                + fileHead.getBytes(StandardCharsets.UTF_8).length
+                + audio.length()
+                + tail.getBytes(StandardCharsets.UTF_8).length;
         HttpURLConnection c = (HttpURLConnection) new URL(base + "/audio/transcriptions").openConnection();
         c.setRequestMethod("POST");
         c.setDoOutput(true);
-        c.setChunkedStreamingMode(1 << 16);
+        c.setFixedLengthStreamingMode(total);
         c.setConnectTimeout(15000);
         c.setReadTimeout(600000);
         c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
@@ -34,21 +47,15 @@ final class Transcription {
         if (!key.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + key);
 
         try (OutputStream out = c.getOutputStream()) {
-            field(out, boundary, "model", Config.tModel(ctx));
-            field(out, boundary, "response_format", "json");
-            String head = "--" + boundary + "\r\n"
-                    + "Content-Disposition: form-data; name=\"file\"; filename=\""
-                    + audio.getName() + "\"\r\n"
-                    + "Content-Type: " + (mime == null ? "application/octet-stream" : mime)
-                    + "\r\n\r\n";
-            out.write(head.getBytes(StandardCharsets.UTF_8));
+            out.write(fieldModel.getBytes(StandardCharsets.UTF_8));
+            out.write(fieldFormat.getBytes(StandardCharsets.UTF_8));
+            out.write(fileHead.getBytes(StandardCharsets.UTF_8));
             try (InputStream in = new FileInputStream(audio)) {
                 byte[] buf = new byte[1 << 16];
                 int n;
                 while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
             }
-            out.write("\r\n".getBytes(StandardCharsets.UTF_8));
-            out.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+            out.write(tail.getBytes(StandardCharsets.UTF_8));
         }
         int code = c.getResponseCode();
         String body = readAll(code < 400 ? c.getInputStream() : c.getErrorStream());
@@ -82,11 +89,9 @@ final class Transcription {
                 text.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static void field(OutputStream out, String boundary, String name, String value)
-            throws Exception {
-        String s = "--" + boundary + "\r\nContent-Disposition: form-data; name=\""
+    private static String fieldBytes(String boundary, String name, String value) {
+        return "--" + boundary + "\r\nContent-Disposition: form-data; name=\""
                 + name + "\"\r\n\r\n" + value + "\r\n";
-        out.write(s.getBytes(StandardCharsets.UTF_8));
     }
 
     private static String readAll(InputStream in) throws Exception {
