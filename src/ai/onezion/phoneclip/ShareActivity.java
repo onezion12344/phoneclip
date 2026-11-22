@@ -37,24 +37,8 @@ public class ShareActivity extends Activity {
             finish();
             return;
         }
-        toast("Copying…");
-        new Thread(() -> {
-            try {
-                copyAndPublish(this, uris);
-                runOnUiThread(() -> {
-                    toast(uris.size() == 1
-                            ? "已复制到手机剪贴板 · 正在发往 Mac"
-                            : "已复制 " + uris.size() + " 个文件 · 正在发往 Mac");
-                    finish();
-                });
-            } catch (Exception e) {
-                String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-                runOnUiThread(() -> {
-                    toast("Failed: " + msg);
-                    finish();
-                });
-            }
-        }, "share").start();
+        toast("选择动作…");
+        Actions.choose(this, uris, this::finish);
     }
 
     /** Copy into our storage (so the URI grant survives), set the phone clipboard, upload. */

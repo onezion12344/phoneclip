@@ -3,11 +3,16 @@ package ai.onezion.phoneclip;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.ImageDecoder;
+import android.media.MediaCodec;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
+import android.media.MediaMuxer;
 import android.net.Uri;
 import android.provider.MediaStore;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
 final class Media {
@@ -67,6 +72,58 @@ final class Media {
         bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out);
         bitmap.recycle();
         return out.toByteArray();
+    }
+
+    /** Remux the first audio track into an .m4a file. No re-encoding, so it is fast. */
+    static File extractAudio(Context ctx, Uri uri, String baseName) throws Exception {
+        MediaExtractor ex = new MediaExtractor();
+        File out = null;
+        MediaMuxer mux = null;
+        try {
+            ex.setDataSource(ctx, uri, null);
+            int track = -1;
+            MediaFormat format = null;
+            for (int i = 0; i < ex.getTrackCount(); i++) {
+                MediaFormat f = ex.getTrackFormat(i);
+                String mime = f.getString(MediaFormat.KEY_MIME);
+                if (mime != null && mime.startsWith("audio/")) {
+                    track = i;
+                    format = f;
+                    break;
+                }
+            }
+            if (track < 0 || format == null) throw new Exception("没有音轨");
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            if (mime == null || !mime.contains("mp4a")) {
+                throw new Exception("音轨格式 " + mime + " 暂不支持直接抽取");
+            }
+
+            File dir = new File(ctx.getFilesDir(), "derived");
+            dir.mkdirs();
+            out = new File(dir, baseName + ".m4a");
+            mux = new MediaMuxer(out.getPath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+            int dst = mux.addTrack(format);
+            mux.start();
+            ex.selectTrack(track);
+
+            ByteBuffer buf = ByteBuffer.allocateDirect(4 << 20);
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            while (true) {
+                int size = ex.readSampleData(buf, 0);
+                if (size < 0) break;
+                info.offset = 0;
+                info.size = size;
+                info.presentationTimeUs = ex.getSampleTime();
+                info.flags = ex.getSampleFlags();
+                mux.writeSampleData(dst, buf, info);
+                ex.advance();
+            }
+            mux.stop();
+            return out;
+        } finally {
+            if (mux != null) mux.release();
+            ex.release();
+        }
     }
 
     static String sha1(byte[] data) {

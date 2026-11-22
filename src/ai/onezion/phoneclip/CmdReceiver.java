@@ -19,6 +19,7 @@ public class CmdReceiver extends BroadcastReceiver {
         Intent svc = new Intent(context, ClipService.class);
         svc.putExtra("action", intent.getStringExtra("action"));
         svc.putExtra("text", intent.getStringExtra("text"));
+        svc.putExtra("path", intent.getStringExtra("path"));
         try {
             context.startService(svc);
         } catch (Exception e) {

@@ -395,6 +395,11 @@ final class PhoneClipServer {
             handleClipImage(conn)
         case ("POST", "/v1/sidecar/result"):
             handleSidecarResult(req, conn)
+        case ("GET", "/v1/sidecar/probe"):
+            let path = req.query["path"] ?? "/sdcard"
+            listPhone(path: path) { [weak self] res in
+                self?.respondJSON(conn, res)
+            }
         default:
             respond(conn, status: 404, body: Data())
         }
@@ -426,7 +431,12 @@ final class PhoneClipServer {
         guard !req.body.isEmpty else { respond(conn, status: 400, body: Data()); return }
         var name = saneName(req.query["name"] ?? "")
         if name.isEmpty { name = "file" }
-        let path = uniquePath(filesDir + "/" + name)
+        let bucket = req.query["dir"] ?? ""
+        let destDir = bucket == "transcripts"
+            ? NSHomeDirectory() + "/Documents/PhoneClip/Transcripts"
+            : filesDir
+        try? FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true)
+        let path = uniquePath(destDir + "/" + name)
         guard (try? req.body.write(to: URL(fileURLWithPath: path))) != nil else {
             respond(conn, status: 500, body: Data()); return
         }

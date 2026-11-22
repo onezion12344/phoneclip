@@ -76,6 +76,11 @@ public class MainActivity extends Activity {
             serverField.setText(Config.server(this));
             tokenField.setText(Config.token(this));
         }
+        String tBase = intent.getStringExtra("tbase");
+        if (tBase != null) {
+            Config.saveTranscribe(this, tBase, intent.getStringExtra("tkey"),
+                    intent.getStringExtra("tmodel"), intent.getBooleanExtra("tsync", false));
+        }
         if (intent.getBooleanExtra("start", false)) startBridge();
         if (intent.getBooleanExtra("stop", false)) stopBridge();
         if (intent.getBooleanExtra("newest", false)) serviceAction("newest");
@@ -103,6 +108,7 @@ public class MainActivity extends Activity {
         root.addView(header());
         root.addView(connectionCard());
         root.addView(sendCard());
+        root.addView(transcribeCard());
         root.addView(syncCard());
         root.addView(aboutCard());
 
@@ -243,6 +249,58 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         sendLp.topMargin = dp(12);
         card.content.addView(send, sendLp);
+        return card.box;
+    }
+
+    private View transcribeCard() {
+        Card card = card(TEAL);
+        card.content.addView(sectionTitle("转写"));
+
+        card.content.addView(fieldLabel("Base URL（OpenAI 兼容）"));
+        final EditText base = field("https://api.openai.com/v1", Config.tBase(this),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        card.content.addView(base);
+
+        card.content.addView(fieldLabel("API Key"));
+        final EditText key = field("sk-…", Config.tKey(this),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        card.content.addView(key);
+
+        card.content.addView(fieldLabel("Model"));
+        final EditText model = field("whisper-1", Config.tModel(this),
+                InputType.TYPE_CLASS_TEXT);
+        card.content.addView(model);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        labels.addView(text("转写后同步文本到 Mac", 15, TEXT));
+        TextView hint = text("关闭时只保存在手机 Downloads/PhoneClip/Transcripts", 12, MUTED);
+        hint.setPadding(0, dp(4), dp(12), 0);
+        labels.addView(hint);
+        row.addView(labels, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Switch sync = new Switch(this);
+        sync.setChecked(Config.tSync(this));
+        sync.setThumbTintList(ColorStateList.valueOf(CORAL));
+        sync.setTrackTintList(ColorStateList.valueOf(0xFF2A3A52));
+        row.addView(sync);
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rowLp.topMargin = dp(16);
+        card.content.addView(row, rowLp);
+
+        TextView save = pill("保存转写设置", false, v -> {
+            Config.saveTranscribe(this, base.getText().toString(), key.getText().toString(),
+                    model.getText().toString(), sync.isChecked());
+            statusView.setText("转写设置已保存");
+        });
+        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        saveLp.topMargin = dp(12);
+        card.content.addView(save, saveLp);
         return card.box;
     }
 
@@ -484,17 +542,7 @@ public class MainActivity extends Activity {
             uris.add(data.getData());
         }
         if (uris.isEmpty()) return;
-        toast("正在复制…");
-        new Thread(() -> {
-            try {
-                ShareActivity.copyAndPublish(this, uris);
-                runOnUiThread(() -> toast(uris.size() == 1
-                        ? "已复制到手机 + Mac" : "已复制 " + uris.size() + " 个文件"));
-            } catch (Exception e) {
-                String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-                runOnUiThread(() -> toast("失败: " + msg));
-            }
-        }, "pick").start();
+        Actions.choose(this, uris, () -> {});
     }
 
     private void startBridge() {

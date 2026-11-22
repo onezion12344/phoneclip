@@ -48,6 +48,25 @@ final class Config {
         prefs(c).edit().putString("scope", scope).apply();
     }
 
+    static String tBase(Context c) { return clean(prefs(c).getString("tBase", "")); }
+    static String tKey(Context c) { return clean(prefs(c).getString("tKey", "")); }
+    static String tModel(Context c) {
+        String m = clean(prefs(c).getString("tModel", ""));
+        return m.isEmpty() ? "whisper-1" : m;
+    }
+    static boolean tSync(Context c) { return prefs(c).getBoolean("tSync", false); }
+
+    static void saveTranscribe(Context c, String base, String key, String model, boolean sync) {
+        String b = clean(base);
+        if (b.endsWith("/")) b = b.substring(0, b.length() - 1);
+        prefs(c).edit()
+                .putString("tBase", b)
+                .putString("tKey", clean(key))
+                .putString("tModel", clean(model))
+                .putBoolean("tSync", sync)
+                .apply();
+    }
+
     private static String clean(String s) {
         return s == null ? "" : s.trim();
     }

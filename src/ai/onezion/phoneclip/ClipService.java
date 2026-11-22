@@ -116,6 +116,19 @@ public class ClipService extends Service {
         if ("push".equals(action)) bg.post(this::pushLocalClipQuietly);
         if ("update".equals(action)) bg.post(this::checkUpdate);
         if ("sharetest".equals(action)) bg.post(this::shareTest);
+        if ("transcribetest".equals(action)) {
+            String path = intent.getStringExtra("path");
+            if (path != null) bg.post(() -> transcribeFile(new File(path)));
+        }
+        if ("compresstest".equals(action)) {
+            String path = intent.getStringExtra("path");
+            if (path != null) bg.post(() -> compressFile(new File(path)));
+        }
+        if ("compress".equals(action)) {
+            String uri = intent.getStringExtra("uri");
+            String name = intent.getStringExtra("name");
+            if (uri != null) bg.post(() -> compressAndSend(Uri.parse(uri), name));
+        }
         if ("offer".equals(action)) {
             ArrayList<String> paths = intent.getStringArrayListExtra("paths");
             ArrayList<String> mimes = intent.getStringArrayListExtra("mimes");
@@ -393,6 +406,36 @@ public class ClipService extends Service {
 
     // ---- helpers -----------------------------------------------------------
 
+    private void transcribeFile(File file) {
+        try {
+            String text = Transcription.run(this, file, "audio/mp4");
+            Transcription.saveToDownloads(this, file.getName() + ".txt", text);
+            if (Config.tSync(this)) {
+                Transcription.syncToMac(this, file.getName() + ".txt", text);
+            }
+            note("转录完成：" + text.length() + " 字");
+        } catch (Exception e) {
+            Log.w(TAG, "transcribetest", e);
+            note("转录失败：" + e.getClass().getSimpleName());
+        }
+    }
+
+    private void compressFile(File file) {
+        try {
+            String base = file.getName();
+            int dot = base.lastIndexOf('.');
+            if (dot > 0) base = base.substring(0, dot);
+            File out = VideoCompressor.compress(this, Uri.fromFile(file), base);
+            ArrayList<Uri> uris = new ArrayList<>();
+            uris.add(Uri.fromFile(out));
+            ShareActivity.copyAndPublish(this, uris);
+            note("压缩完成：" + out.length() / 1024 + " KB");
+        } catch (Exception e) {
+            Log.w(TAG, "compresstest", e);
+            note("压缩失败：" + e.getClass().getSimpleName());
+        }
+    }
+
     private void shareTest() {
         try {
             Media.Photo p = Media.newestPhoto(this, 0, true);
@@ -407,6 +450,20 @@ public class ClipService extends Service {
         } catch (Exception e) {
             Log.w(TAG, "share test", e);
             note("share test failed: " + e.getClass().getSimpleName());
+        }
+    }
+
+    private void compressAndSend(Uri uri, String name) {
+        try {
+            note("正在压缩 720p…");
+            File out = VideoCompressor.compress(this, uri, name == null ? "video" : name);
+            ArrayList<Uri> uris = new ArrayList<>();
+            uris.add(Uri.fromFile(out));
+            ShareActivity.copyAndPublish(this, uris);
+            note("已压缩并发送（" + out.length() / 1024 + " KB）");
+        } catch (Exception e) {
+            Log.w(TAG, "compress", e);
+            note("压缩失败：" + e.getClass().getSimpleName());
         }
     }
 
