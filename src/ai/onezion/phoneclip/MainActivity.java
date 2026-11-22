@@ -356,6 +356,12 @@ public class MainActivity extends Activity {
         filesAccessView.setOnClickListener(v -> openAllFilesAccess());
         card.content.addView(filesAccessView);
 
+        TextView selfTest = pill("运行自检", false, v -> runSelfTest());
+        LinearLayout.LayoutParams stLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        stLp.topMargin = dp(14);
+        card.content.addView(selfTest, stLp);
+
         TextView settings = text("打开应用设置（自启动 / 后台权限）", 13, MUTED);
         settings.setPadding(dp(4), dp(14), dp(4), dp(2));
         settings.setOnClickListener(v -> {
@@ -373,6 +379,58 @@ public class MainActivity extends Activity {
                 || Environment.isExternalStorageManager();
         return ok ? "所有文件访问：已开启（Sidecar 可用）"
                   : "所有文件访问：未开启（点击开启，供 Mac 浏览手机文件）";
+    }
+
+    private void runSelfTest() {
+        statusView.setText("自检中…");
+        new Thread(() -> {
+            StringBuilder out = new StringBuilder();
+            boolean allOk = true;
+
+            boolean storage = Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager();
+            out.append(storage ? "✓ 全盘访问\n" : "✗ 全盘访问未开启\n");
+            allOk &= storage;
+
+            boolean service = Config.enabled(this)
+                    && ClipService.isRunning(this);
+            out.append(service ? "✓ 前台服务\n" : "✗ 前台服务未运行\n");
+            allOk &= service;
+
+            String server = Config.server(this);
+            try {
+                Http.getTextOrNull(server + "/v1/ping", Config.token(this));
+                out.append("✓ Mac 可达\n");
+            } catch (Exception e) {
+                out.append("✗ Mac 不可达（").append(e.getClass().getSimpleName()).append("）\n");
+                allOk = false;
+            }
+
+            if (storage) {
+                try {
+                    int n = ClipService.countDir("/sdcard");
+                    out.append("✓ 可读 /sdcard（").append(n).append(" 项）\n");
+                } catch (Exception e) {
+                    out.append("✗ 读 /sdcard 失败\n");
+                    allOk = false;
+                }
+            }
+
+            String tBase = Config.tBase(this);
+            if (tBase.isEmpty()) {
+                out.append("· 转写端点未配置\n");
+            } else {
+                try {
+                    Http.getTextOrNull(tBase + "/models", Config.tKey(this));
+                    out.append("✓ 转写端点可达\n");
+                } catch (Exception e) {
+                    out.append("· 转写端点无 /models（仍可能可用）\n");
+                }
+            }
+
+            boolean finalOk = allOk;
+            String report = (finalOk ? "自检通过\n" : "自检有问题\n") + out;
+            runOnUiThread(() -> statusView.setText(report));
+        }, "selftest").start();
     }
 
     private void openAllFilesAccess() {

@@ -467,6 +467,24 @@ public class ClipService extends Service {
         }
     }
 
+    static boolean isRunning(Context ctx) {
+        android.app.ActivityManager am =
+                (android.app.ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
+        if (am == null) return false;
+        for (android.app.ActivityManager.RunningServiceInfo info
+                : am.getRunningServices(Integer.MAX_VALUE)) {
+            if (ClipService.class.getName().equals(info.service.getClassName())) return true;
+        }
+        return false;
+    }
+
+    static int countDir(String path) throws Exception {
+        File dir = new File(path);
+        if (!dir.isDirectory()) throw new Exception("not a directory");
+        String[] names = dir.list();
+        return names == null ? 0 : names.length;
+    }
+
     static boolean isImageUri(Context ctx, Uri uri) {
         String type = ctx.getContentResolver().getType(uri);
         if (type != null && type.startsWith("image/")) return true;
