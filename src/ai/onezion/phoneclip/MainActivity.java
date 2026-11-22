@@ -443,7 +443,7 @@ public class MainActivity extends Activity {
                 if (f.isDirectory()) { fileDir = f; listFiles(); }
                 else sendFileToMac(f);
             });
-            t.setOnLongClickListener(v -> { confirmDelete(f); return true; });
+            t.setOnLongClickListener(v -> { fileActions(f); return true; });
             fileList.addView(t);
         }
     }
@@ -473,6 +473,37 @@ public class MainActivity extends Activity {
                 .setNegativeButton("取消", null)
                 .setPositiveButton("删除", (d, w) -> {
                     toast(f.delete() ? "已删除" : "删除失败");
+                    listFiles();
+                }).show();
+    }
+
+    private void fileActions(java.io.File f) {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(f.getName())
+                .setItems(new String[] { "重命名", "删除" }, (d, which) -> {
+                    if (which == 0) renameFile(f);
+                    else confirmDelete(f);
+                }).show();
+    }
+
+    private void renameFile(java.io.File f) {
+        EditText input = field("新文件名", f.getName(), InputType.TYPE_CLASS_TEXT);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("重命名")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确定", (d, w) -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty() || name.contains("/")) {
+                        toast("文件名不合法");
+                        return;
+                    }
+                    java.io.File dst = new java.io.File(f.getParentFile(), name);
+                    if (dst.exists()) {
+                        toast("同名文件已存在");
+                        return;
+                    }
+                    toast(f.renameTo(dst) ? "已重命名" : "重命名失败");
                     listFiles();
                 }).show();
     }
