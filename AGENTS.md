@@ -37,6 +37,8 @@ no Electron, no ADB at runtime.
   unwritable). Needs wireless-debugging pairing after a restart.
 - The Mac app is ad-hoc signed: `open` from sandboxed shells fails with `-10825`;
   the LaunchAgent is the reliable start path. First manual open may need right-click → Open.
+- 「偏好设置 → 启用开机启动」只写/删 LaunchAgent plist，**不** bootstrap/bootout：
+  bootout 会杀掉当前进程，bootstrap 会拉起第二个实例。改动下次登录生效。
 - OTA updates only install over the same signing key: keep `~/.android/debug.keystore`.
 - Full-disk sidecar needs the `MANAGE_EXTERNAL_STORAGE` special access toggle.
 - Video compression is MediaCodec H.264 720p (`~2.5 Mbps`); the audio track is copied

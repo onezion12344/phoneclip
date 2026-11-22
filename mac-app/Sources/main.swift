@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var browser: PhoneBrowserController?
     private var portField: NSTextField!
     private var tokenField: NSTextField!
+    private var autostartButton: NSButton!
+    private var autostartStatus: NSTextField!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = ProcessInfo.processInfo.arguments
@@ -158,11 +160,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         regen.frame = NSRect(x: 100, y: 120, width: 150, height: 26)
         v.addSubview(regen)
 
-        let note = NSTextField(labelWithString: "登录时自动启动由安装脚本写入的 LaunchAgent 负责。")
-        note.font = NSFont.systemFont(ofSize: 11)
-        note.textColor = .secondaryLabelColor
-        note.frame = NSRect(x: 24, y: 84, width: 350, height: 18)
-        v.addSubview(note)
+        autostartButton = NSButton(title: "启用开机启动", target: self,
+                                   action: #selector(toggleAutostart))
+        autostartButton.frame = NSRect(x: 24, y: 78, width: 140, height: 28)
+        v.addSubview(autostartButton)
+
+        autostartStatus = NSTextField(labelWithString: "")
+        autostartStatus.font = NSFont.systemFont(ofSize: 11)
+        autostartStatus.textColor = .secondaryLabelColor
+        autostartStatus.frame = NSRect(x: 176, y: 84, width: 200, height: 18)
+        v.addSubview(autostartStatus)
 
         let save = NSButton(title: "保存并重启", target: self, action: #selector(savePrefs))
         save.keyEquivalent = "\r"
@@ -175,6 +182,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         w.contentView = v
         prefsWindow = w
+        updateAutostart()
+    }
+
+    private var autostartPath: String {
+        NSHomeDirectory() + "/Library/LaunchAgents/ai.onezion.phoneclip.mac.plist"
+    }
+
+    private var autostartInstalled: Bool {
+        FileManager.default.fileExists(atPath: autostartPath)
+    }
+
+    @objc private func toggleAutostart() {
+        if autostartInstalled {
+            // never bootout: that would terminate this very session
+            try? FileManager.default.removeItem(atPath: autostartPath)
+            Toast.show("开机自启", "已停用（本次运行继续）")
+        } else if let exe = Bundle.main.executablePath {
+            let plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
+                + "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\"><dict>\n"
+                + "<key>Label</key><string>ai.onezion.phoneclip.mac</string>\n"
+                + "<key>ProgramArguments</key><array><string>\(exe)</string></array>\n"
+                + "<key>RunAtLoad</key><true/>\n"
+                + "<key>KeepAlive</key><true/>\n"
+                + "<key>LimitLoadToSessionType</key><string>Aqua</string>\n"
+                + "<key>StandardOutPath</key><string>/tmp/phoneclip-app.log</string>\n"
+                + "<key>StandardErrorPath</key><string>/tmp/phoneclip-app.log</string>\n"
+                + "</dict></plist>\n"
+            do {
+                try plist.write(toFile: autostartPath, atomically: true, encoding: .utf8)
+                Toast.show("开机自启", "已启用（下次登录生效）")
+            } catch {
+                Toast.show("开机自启", "写入失败：\(error.localizedDescription)")
+            }
+        }
+        updateAutostart()
+    }
+
+    private func updateAutostart() {
+        autostartButton?.title = autostartInstalled ? "停用开机启动" : "启用开机启动"
+        autostartStatus?.stringValue = autostartInstalled ? "当前：已启用" : "当前：未启用"
     }
 
     @objc private func regenToken() {
@@ -197,6 +246,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func closePrefs() {
         prefsWindow?.orderOut(nil)
     }
+}
+
+let bundleID = Bundle.main.bundleIdentifier ?? ""
+if !bundleID.isEmpty,
+   NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1 {
+    exit(0)
 }
 
 let app = NSApplication.shared
