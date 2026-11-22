@@ -58,10 +58,11 @@ def main():
         if not original["kind"]:
             original["text"] = subprocess.run(["pbpaste"], capture_output=True, text=True).stdout
 
-        # --- fake phone
+        # --- fake phones
         stop = threading.Event()
-        seen = {"kinds": [], "responses": []}
-        def phone():
+        seen = {"kinds": [], "responses": [], "texts": [], "cmds": []}
+        lock = threading.Lock()
+        def phone(idx):
             rev = -1
             while not stop.is_set():
                 try:
@@ -69,12 +70,19 @@ def main():
                     if st == 204 or not body:
                         continue
                     obj = json.loads(body)
-                    seen["responses"].append(obj)
+                    with lock:
+                        seen["responses"].append(obj)
+                        if obj.get("text"):
+                            seen["texts"].append(obj["text"])
                     rev = obj.get("rev", rev)
+                    if obj.get("reset"):
+                        rev = -1
                     cmd = obj.get("cmd")
                     if not cmd:
                         continue
-                    seen["kinds"].append(obj.get("kind"))
+                    with lock:
+                        seen["kinds"].append(obj.get("kind"))
+                        seen["cmds"].append(idx)
                     if cmd["op"] == "list":
                         res = {"ok": True, "path": cmd["path"],
                                "entries": [{"name": "fake.txt", "dir": False,
@@ -90,8 +98,8 @@ def main():
                             json.dumps(res).encode())
                 except Exception:
                     time.sleep(0.3)
-        t = threading.Thread(target=phone, daemon=True)
-        t.start()
+        for idx in range(2):
+            threading.Thread(target=phone, args=(idx,), daemon=True).start()
 
         st, body = req("GET", "/v1/ping", token)
         check("ping", st == 200 and b'"ok"' in body, body)
@@ -124,6 +132,15 @@ def main():
         check("sidecar list round-trip", ok, body)
         check("command response does not replay stale clipboard",
               bool(seen["kinds"]) and seen["kinds"][-1] == "", seen["kinds"][-3:])
+
+        time.sleep(0.3)
+        check("command delivered to exactly one poller",
+              len(seen["cmds"]) == 1, seen["cmds"])
+
+        subprocess.run(["osascript", "-e", 'set the clipboard to "both-phones"'],
+                       capture_output=True)
+        ok = wait_for(lambda: seen["texts"].count("both-phones") >= 2, 8)
+        check("clipboard change reaches both pollers", ok, seen["texts"][-4:])
 
         target = os.path.join(DOWNLOADS, "fake-download.txt")
         if os.path.exists(target):

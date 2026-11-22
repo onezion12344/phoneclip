@@ -17,7 +17,7 @@ no Electron, no ADB at runtime.
 | Install Mac app + login agent | `./install-mac.sh` (LaunchAgent `ai.onezion.phoneclip.mac`) |
 | Deploy to phone | `./deploy-phone.sh <serial>` (install, permissions, configure, test image) |
 | Device self-test | `./selftest.sh <serial>` (sidecar, transcription mock, 720p, AAC) |
-| Mac protocol tests | `python3 tests/server_test.py` (10 assertions, private port) |
+| Mac protocol tests | `python3 tests/server_test.py` (12 assertions, private port, two simulated phones) |
 | Release | `./release.sh X.Y.Z`, then `gh release create vX.Y.Z build/PhoneClip.apk build/PhoneClip-X.Y.Z.dmg` |
 
 `release.sh` and `install-mac.sh` run the protocol tests and abort on failure
