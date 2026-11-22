@@ -158,4 +158,4 @@ phoneclip/
 
 目标设备：OnePlus Ace 3 Pro（ColorOS 16 / Android 16）、OnePlus Open（CPH2551）、macOS 15+。
 
-验证状态：Mac 端协议测试 16 项全绿、DMG 冷启动与 OTA 链路实测；**手机端功能（侧车、转写、压缩、新界面）尚待在真机上回归**。
+验证状态：Mac 端协议测试 16 项全绿；**手机端（OnePlus Ace 3 Pro）验收 5/5 通过**：侧车列表与下载、手机端转写并同步、720p 压缩、AAC 96k。

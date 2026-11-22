@@ -22,6 +22,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -98,42 +99,347 @@ public class MainActivity extends Activity {
 
     // ---- UI ----------------------------------------------------------------
 
-    private ScrollView buildUi() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(24), dp(20), dp(32));
-        GradientDrawable bg = new GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] { 0xFF132238, BG, BG });
-        root.setBackground(bg);
-
-        root.setOnApplyWindowInsetsListener((v, insets) -> {
-            int top;
+    private View buildUi() {
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+        outer.setBackgroundColor(BG);
+        outer.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top, bottom;
             if (Build.VERSION.SDK_INT >= 30) {
                 top = insets.getInsets(android.view.WindowInsets.Type.statusBars()).top;
+                bottom = insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
             } else {
                 top = insets.getSystemWindowInsetTop();
+                bottom = insets.getSystemWindowInsetBottom();
             }
-            v.setPadding(dp(20), dp(24) + top, dp(20), dp(32));
+            v.setPadding(0, top, 0, bottom);
             return insets;
         });
-        root.addView(header());
-        root.addView(connectionCard());
-        root.addView(sendCard());
-        root.addView(transcribeCard());
-        root.addView(syncCard());
-        root.addView(aboutCard());
 
-        statusView = text("", 12, MUTED);
-        statusView.setPadding(dp(4), dp(18), dp(4), 0);
-        root.addView(statusView);
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.VERTICAL);
+        head.setPadding(dp(20), dp(10), dp(20), 0);
+        head.addView(header());
+        outer.addView(head, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        tabContent = new FrameLayout(this);
+        outer.addView(tabContent, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        outer.addView(bottomBar(), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(58)));
+
+        showTab(0);
+        return outer;
+    }
+
+    private FrameLayout tabContent;
+    private final java.util.Map<Integer, View> tabViews = new java.util.HashMap<>();
+    private final java.util.List<TextView> tabButtons = new java.util.ArrayList<>();
+    private static final String[] TAB_NAMES = { "连接", "照片", "录音", "文件", "设置" };
+
+    private View bottomBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xFF101C2C);
+        bg.setStroke(dp(1), BORDER);
+        bar.setBackground(bg);
+        for (int i = 0; i < TAB_NAMES.length; i++) {
+            final int idx = i;
+            TextView t = text(TAB_NAMES[i], 13, MUTED);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(0, dp(18), 0, 0);
+            t.setOnClickListener(v -> showTab(idx));
+            bar.addView(t, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+            tabButtons.add(t);
+        }
+        return bar;
+    }
+
+    private void showTab(int i) {
+        for (java.util.Map.Entry<Integer, View> e : tabViews.entrySet()) {
+            e.getValue().setVisibility(e.getKey() == i ? View.VISIBLE : View.GONE);
+        }
+        View v = tabViews.get(i);
+        if (v == null) {
+            v = tabView(i);
+            tabViews.put(i, v);
+            tabContent.addView(v, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        v.setVisibility(View.VISIBLE);
+        for (int k = 0; k < tabButtons.size(); k++) {
+            tabButtons.get(k).setTextColor(k == i ? GOLD : MUTED);
+        }
+        refresh();
+    }
+
+    private View tabView(int i) {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(20), dp(6), dp(20), dp(24));
+        switch (i) {
+            case 0:
+                col.addView(connectionCard());
+                statusView = text("", 12, MUTED);
+                statusView.setPadding(dp(4), dp(18), dp(4), 0);
+                col.addView(statusView);
+                break;
+            case 1:
+                col.addView(syncCard());
+                col.addView(photosCard());
+                break;
+            case 2:
+                col.addView(recorderCard());
+                break;
+            case 3:
+                col.addView(filesCard());
+                break;
+            default:
+                col.addView(sendCard());
+                col.addView(transcribeCard());
+                col.addView(aboutCard());
+        }
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.setBackgroundColor(BG);
-        scroll.addView(root, new ViewGroup.LayoutParams(
+        scroll.addView(col, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return scroll;
+    }
+
+    private View photosCard() {
+        Card card = card(GOLD);
+        card.content.addView(sectionTitle("照片 · 每日 observation"));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        labels.addView(text("用 VLM 识别当天照片", 15, TEXT));
+        TextView hint = text("生成纯文本 observation，发送到 Mac", 12, MUTED);
+        hint.setPadding(0, dp(4), dp(12), 0);
+        labels.addView(hint);
+        row.addView(labels, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Switch on = new Switch(this);
+        on.setChecked(Config.vlmOn(this));
+        on.setThumbTintList(ColorStateList.valueOf(CORAL));
+        on.setTrackTintList(ColorStateList.valueOf(0xFF2A3A52));
+        row.addView(on);
+        card.content.addView(row);
+
+        card.content.addView(fieldLabel("VLM Base URL（OpenAI 兼容）"));
+        final EditText base = field("https://api.openai.com/v1", Config.vlmBase(this),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        card.content.addView(base);
+
+        card.content.addView(fieldLabel("API Key"));
+        final EditText key = field("sk-…", Config.vlmKey(this),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        card.content.addView(key);
+
+        card.content.addView(fieldLabel("Model"));
+        final EditText model = field("gpt-4o-mini", Config.vlmModel(this),
+                InputType.TYPE_CLASS_TEXT);
+        card.content.addView(model);
+
+        card.content.addView(fieldLabel("每天几点运行（0-23）"));
+        final EditText hour = field("22", String.valueOf(Config.vlmHour(this)),
+                InputType.TYPE_CLASS_NUMBER);
+        card.content.addView(hour);
+
+        TextView save = pill("保存照片设置", false, v -> {
+            Config.saveVlm(this, on.isChecked(), base.getText().toString(),
+                    key.getText().toString(), model.getText().toString(),
+                    parseInt(hour.getText().toString(), 22));
+            toast("照片设置已保存");
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(12);
+        card.content.addView(save, lp);
+        return card.box;
+    }
+
+    private View recorderCard() {
+        Card card = card(CORAL);
+        card.content.addView(sectionTitle("录音 · 每日同步"));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        labels.addView(text("每天自动同步新录音", 15, TEXT));
+        TextView hint = text("按下面的模式处理当天新增的录音", 12, MUTED);
+        hint.setPadding(0, dp(4), 0, 0);
+        labels.addView(hint);
+        row.addView(labels, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Switch on = new Switch(this);
+        on.setChecked(Config.recOn(this));
+        on.setThumbTintList(ColorStateList.valueOf(CORAL));
+        on.setTrackTintList(ColorStateList.valueOf(0xFF2A3A52));
+        row.addView(on);
+        card.content.addView(row);
+
+        card.content.addView(fieldLabel("模式"));
+        final String[] mode = { Config.recMode(this) };
+        LinearLayout modes = new LinearLayout(this);
+        modes.setOrientation(LinearLayout.HORIZONTAL);
+        TextView media = pill("压缩后发送", "media".equals(mode[0]), v -> {
+            mode[0] = "media";
+            refreshPills();
+        });
+        TextView textOnly = pill("只发转写文本", "transcript".equals(mode[0]), v -> {
+            mode[0] = "transcript";
+            refreshPills();
+        });
+        modes.addView(media);
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        mlp.leftMargin = dp(10);
+        modes.addView(textOnly, mlp);
+        pillReset = () -> {
+            stylePill(media, "media".equals(mode[0]));
+            stylePill(textOnly, "transcript".equals(mode[0]));
+        };
+        card.content.addView(modes);
+
+        card.content.addView(fieldLabel("每天几点运行（0-23）"));
+        final EditText hour = field("23", String.valueOf(Config.recHour(this)),
+                InputType.TYPE_CLASS_NUMBER);
+        card.content.addView(hour);
+
+        card.content.addView(fieldLabel("转写 Base URL（OpenAI 兼容）"));
+        final EditText base = field("https://api.openai.com/v1", Config.tBase(this),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        card.content.addView(base);
+        card.content.addView(fieldLabel("转写 API Key"));
+        final EditText key = field("sk-…", Config.tKey(this),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        card.content.addView(key);
+        card.content.addView(fieldLabel("转写 Model"));
+        final EditText model = field("whisper-1", Config.tModel(this), InputType.TYPE_CLASS_TEXT);
+        card.content.addView(model);
+
+        TextView save = pill("保存录音设置", false, v -> {
+            Config.saveRecorder(this, on.isChecked(), mode[0],
+                    parseInt(hour.getText().toString(), 23));
+            Config.saveTranscribe(this, base.getText().toString(), key.getText().toString(),
+                    model.getText().toString(), true);
+            toast("录音设置已保存");
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(12);
+        card.content.addView(save, lp);
+        return card.box;
+    }
+
+    private Runnable pillReset;
+    private void refreshPills() { if (pillReset != null) pillReset.run(); }
+    private void stylePill(TextView p, boolean on) {
+        GradientDrawable g = new GradientDrawable();
+        g.setCornerRadius(dp(22));
+        g.setColor(on ? CORAL : 0xFF1B2A42);
+        g.setStroke(dp(1), on ? CORAL : BORDER);
+        p.setBackground(g);
+        p.setTextColor(on ? 0xFF101820 : TEXT);
+    }
+
+    private static int parseInt(String s, int fallback) {
+        try { return Integer.parseInt(s.trim()); } catch (Exception e) { return fallback; }
+    }
+
+    private java.io.File fileDir = new java.io.File("/sdcard");
+    private LinearLayout fileList;
+    private TextView filePath;
+
+    private View filesCard() {
+        Card card = card(TEAL);
+        card.content.addView(sectionTitle("文件"));
+        filePath = text(fileDir.getAbsolutePath(), 12, MUTED);
+        card.content.addView(filePath);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(pill("上一级", false, v -> {
+            java.io.File up = fileDir.getParentFile();
+            if (up != null) { fileDir = up; listFiles(); }
+        }));
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.leftMargin = dp(10);
+        row.addView(pill("刷新", false, v -> listFiles()), rlp);
+        card.content.addView(row);
+
+        fileList = new LinearLayout(this);
+        fileList.setOrientation(LinearLayout.VERTICAL);
+        card.content.addView(fileList);
+
+        listFiles();
+        return card.box;
+    }
+
+    private void listFiles() {
+        if (fileList == null) return;
+        fileList.removeAllViews();
+        filePath.setText(fileDir.getAbsolutePath());
+        java.io.File[] items = fileDir.listFiles();
+        if (items == null) {
+            fileList.addView(text("无法读取该目录", 13, MUTED));
+            return;
+        }
+        java.util.Arrays.sort(items, (a, b) -> {
+            if (a.isDirectory() != b.isDirectory()) return a.isDirectory() ? -1 : 1;
+            return a.getName().compareToIgnoreCase(b.getName());
+        });
+        int shown = 0;
+        for (java.io.File f : items) {
+            String name = f.getName();
+            if (name.startsWith(".")) continue;
+            if (fileDir.getName().equals("Android")
+                    && (name.equals("data") || name.equals("obb"))) continue;
+            if (++shown > 200) break;
+            TextView t = text((f.isDirectory() ? "▸ " : "· ") + name
+                    + (f.isDirectory() ? "" : "  " + (f.length() / 1024) + " KB"), 14,
+                    f.isDirectory() ? GOLD : TEXT);
+            t.setPadding(dp(2), dp(12), dp(2), dp(12));
+            t.setOnClickListener(v -> {
+                if (f.isDirectory()) { fileDir = f; listFiles(); }
+                else sendFileToMac(f);
+            });
+            t.setOnLongClickListener(v -> { confirmDelete(f); return true; });
+            fileList.addView(t);
+        }
+    }
+
+    private void sendFileToMac(java.io.File f) {
+        Intent i = new Intent(this, ClipService.class);
+        i.putExtra("action", "offer");
+        i.putStringArrayListExtra("paths", new java.util.ArrayList<>(
+                java.util.Collections.singletonList(f.getAbsolutePath())));
+        i.putStringArrayListExtra("mimes", new java.util.ArrayList<>(
+                java.util.Collections.singletonList("*/*")));
+        boolean ok = ShareActivity.startServiceSafely(this, i);
+        toast(ok ? "已发送：" + f.getName() : "Mac 同步未启动，请先启动");
+    }
+
+    private void confirmDelete(java.io.File f) {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("删除")
+                .setMessage(f.getAbsolutePath())
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (d, w) -> {
+                    toast(f.delete() ? "已删除" : "删除失败");
+                    listFiles();
+                }).show();
     }
 
     private View header() {
@@ -151,7 +457,7 @@ public class MainActivity extends Activity {
         tp.leftMargin = dp(14);
         row.addView(titles, tp);
 
-        TextView title = text("OneZion Clip", 25, TEXT);
+        TextView title = text("OneZion Connect", 25, TEXT);
         title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         title.setLetterSpacing(-0.02f);
         title.getPaint().setShader(new LinearGradient(0, 0, 0, dp(30),

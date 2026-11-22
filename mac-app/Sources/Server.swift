@@ -125,6 +125,7 @@ final class PhoneClipServer {
         let timeout: DispatchWorkItem?
     }
     private var waiters: [UUID: Waiter] = [:]
+    private var retried: Set<String> = []
 
     private struct PendingCommand {
         let id: String
@@ -155,19 +156,47 @@ final class PhoneClipServer {
         }
         let id = UUID().uuidString
         let timeout = DispatchWorkItem { [weak self] in
-            guard let self, let c = self.inFlight.removeValue(forKey: id) else { return }
+            guard let self, let c = self.inFlight[id] else { return }
+            // a poller can be "ready" while its peer is already dead; give the phone
+            // one more chance on a fresh poll instead of failing after a single send
+            if !self.retried.contains(id), !self.waiters.isEmpty {
+                self.retried.insert(id)
+                self.inFlight.removeValue(forKey: id)
+                self.commands.removeAll { $0.id == id }
+                self.commands.insert(c, at: 0)
+                let again = DispatchWorkItem { [weak self] in
+                    guard let self, let c2 = self.inFlight.removeValue(forKey: id) else { return }
+                    self.commands.removeAll { $0.id == id }
+                    self.retried.remove(id)
+                    c2.completion(["ok": false, "error": "timeout"])
+                }
+                self.inFlight[id] = PendingCommand(id: id, op: op, path: path,
+                                                   completion: completion, timeout: again)
+                self.queue.asyncAfter(deadline: .now() + 12, execute: again)
+                self.logLine("sidecar: retry \(op) \(id.prefix(8))")
+                self.serveWaiting()
+                return
+            }
+            self.inFlight.removeValue(forKey: id)
             self.commands.removeAll { $0.id == id }
+            self.retried.remove(id)
             c.completion(["ok": false, "error": "timeout"])
         }
         inFlight[id] = PendingCommand(id: id, op: op, path: path,
                                       completion: completion, timeout: timeout)
         commands.append(inFlight[id]!)
-        queue.asyncAfter(deadline: .now() + 25, execute: timeout)
+        queue.asyncAfter(deadline: .now() + 12, execute: timeout)
+        logLine("sidecar: queue \(op) \(id.prefix(8)) waiters=\(waiters.count)")
         serveWaiting()
     }
 
     private func serveWaiting() {
-        guard !commands.isEmpty, let (wid, w) = waiters.first else { return }
+        guard !commands.isEmpty, let (wid, w) = waiters.first(where: { $0.value.conn.state == .ready }) else {
+            if !commands.isEmpty {
+                logLine("sidecar: no waiter for \(commands.count) queued")
+            }
+            return
+        }
         waiters[wid] = nil
         w.timeout?.cancel()
         respondStateOrCommand(w.conn, since: w.since)
@@ -457,7 +486,8 @@ final class PhoneClipServer {
     }
 
     private func dispatch(_ req: HTTPRequest, _ conn: NWConnection) {
-        logLine("\(req.method) \(req.path) from \(conn.endpoint)")
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        logLine("\(stamp) \(req.method) \(req.path) from \(conn.endpoint)")
         guard peerAllowed(conn) else {
             respond(conn, status: 403, body: Data("forbidden network".utf8))
             return
@@ -638,14 +668,20 @@ final class PhoneClipServer {
             let c = commands.removeFirst()
             sent = c
             obj["cmd"] = ["id": c.id, "op": c.op, "path": c.path]
+            logLine("sidecar: send \(c.op) \(c.id.prefix(8)) to \(conn.endpoint)")
         }
         if !fresh && !stale && obj["cmd"] == nil {
             respond(conn, status: 204, body: Data())
             return
         }
         respondJSON(conn, obj) { [weak self] in
-            // the socket died before the command could be written: keep it queued
-            if let c = sent { self?.commands.insert(c, at: 0) }
+            guard let self else { return }
+            self.queue.async {
+                // the socket died before the command could be written: keep it queued
+                // and hand it to the next poller instead of waiting for the 25 s timeout
+                if let c = sent { self.commands.insert(c, at: 0) }
+                self.serveWaiting()
+            }
         }
     }
 

@@ -72,6 +72,45 @@ final class Config {
                 .apply();
     }
 
+    // ---- photos: daily VLM observation --------------------------------------
+    static boolean vlmOn(Context c) { return prefs(c).getBoolean("vlmOn", false); }
+    static String vlmBase(Context c) { return clean(prefs(c).getString("vlmBase", "")); }
+    static String vlmKey(Context c) { return clean(prefs(c).getString("vlmKey", "")); }
+    static String vlmModel(Context c) {
+        String m = clean(prefs(c).getString("vlmModel", ""));
+        return m.isEmpty() ? "gpt-4o-mini" : m;
+    }
+    static int vlmHour(Context c) { return prefs(c).getInt("vlmHour", 22); }
+    static long lastVlmRun(Context c) { return prefs(c).getLong("lastVlmRun", 0); }
+    static void setLastVlmRun(Context c, long epochSec) {
+        prefs(c).edit().putLong("lastVlmRun", epochSec).apply();
+    }
+    static void saveVlm(Context c, boolean on, String base, String key, String model, int hour) {
+        String b = clean(base);
+        if (b.endsWith("/")) b = b.substring(0, b.length() - 1);
+        prefs(c).edit().putBoolean("vlmOn", on).putString("vlmBase", b)
+                .putString("vlmKey", clean(key)).putString("vlmModel", clean(model))
+                .putInt("vlmHour", hour).apply();
+    }
+
+    // ---- recorder: daily sync -----------------------------------------------
+    static boolean recOn(Context c) { return prefs(c).getBoolean("recOn", false); }
+    /** media = 压缩后发文件；transcript = 只发转写文本 */
+    static String recMode(Context c) { return prefs(c).getString("recMode", "media"); }
+    static int recHour(Context c) { return prefs(c).getInt("recHour", 23); }
+    static long lastRecRun(Context c) { return prefs(c).getLong("lastRecRun", 0); }
+    static void setLastRecRun(Context c, long epochSec) {
+        prefs(c).edit().putLong("lastRecRun", epochSec).apply();
+    }
+    static void saveRecorder(Context c, boolean on, String mode, int hour) {
+        prefs(c).edit().putBoolean("recOn", on).putString("recMode", mode)
+                .putInt("recHour", hour).apply();
+    }
+    static String lastRecName(Context c) { return prefs(c).getString("lastRecName", ""); }
+    static void setLastRecName(Context c, String name) {
+        prefs(c).edit().putString("lastRecName", name).apply();
+    }
+
     private static String clean(String s) {
         return s == null ? "" : s.trim();
     }

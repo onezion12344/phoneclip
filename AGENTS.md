@@ -61,8 +61,14 @@ app binary makes the release exit 1 with the manifest untouched.
   sidecar list/get, transcription, 720p/AAC compression, redesigned UI and icon.
   Run `./selftest.sh <serial>` or the in-app 「运行自检」 when a device is reachable.
 
-Verification status: the Mac side is covered by `tests/server_test.py` (16 assertions) and
-has been run as a shipped artifact (DMG cold start, OTA asset/hash/version). The Android
-features added in 1.4 — sidecar, in-app transcription, 720p/AAC compression, Material You UI —
-have NOT been executed on a phone yet. Do not describe them as device-tested until
-`selftest.sh` has actually passed on hardware.
+Verification status (2026-11-23, OnePlus Ace 3 Pro / PJX110):
+``./selftest.sh`` passes 5/5 — sidecar list + download, in-app transcription with Mac sync,
+720p H.264 (1280×720) compression, AAC 96 kbps audio. Mac protocol tests: 16/16.
+The UI is now a bottom-tab layout (连接/照片/录音/文件/设置).
+
+Media notes learned on this device:
+- The 720p pipeline must NOT use an encoder input surface: on the Qualcomm Codec2 stack the
+  encoder stayed empty until EOS. It now decodes to YUV Images and copies planes into
+  `COLOR_FormatYUV420Flexible` encoder input.
+- Test media must be yuv420p; ffmpeg's testsrc defaults to yuv444p which phone decoders reject.
+- Sidecar commands need a short retry: a poller can be "ready" while its peer is already dead.

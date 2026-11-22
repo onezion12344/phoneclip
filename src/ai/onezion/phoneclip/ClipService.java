@@ -98,6 +98,28 @@ public class ClipService extends Service {
         pollThread.start();
 
         bg.postDelayed(this::checkUpdate, 45000);
+        bg.postDelayed(dailyTask, 90000);
+    }
+
+    private final Runnable dailyTask = this::checkDaily;
+
+    private void checkDaily() {
+        bg.removeCallbacks(dailyTask);
+        try {
+            int hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+            long today = Jobs.startOfToday();
+            if (Config.vlmOn(this) && hour >= Config.vlmHour(this)
+                    && Config.lastVlmRun(this) < today) {
+                Jobs.photoVlm(this);
+            }
+            if (Config.recOn(this) && hour >= Config.recHour(this)
+                    && Config.lastRecRun(this) < today) {
+                Jobs.recorderSync(this);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "daily: " + e);
+        }
+        if (running) bg.postDelayed(dailyTask, 10L * 60 * 1000);
     }
 
     private void checkUpdate() {

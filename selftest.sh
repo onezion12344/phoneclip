@@ -64,6 +64,7 @@ fi
 # test media: 1080p source (so compression has something to shrink) + audio only
 ffmpeg -y -loglevel error -f lavfi -i testsrc=size=1920x1080:rate=30 -t 4 \
   -f lavfi -i sine=frequency=440:duration=4 -c:v libx264 -preset veryfast \
+  -pix_fmt yuv420p -profile:v high -level 4.0 \
   -c:a aac -shortest /tmp/pc_test.mp4
 ffmpeg -y -loglevel error -i /tmp/pc_test.mp4 -vn -c:a copy /tmp/pc_test.m4a
 "${ADB[@]}" push /tmp/pc_test.mp4 /sdcard/Download/pc_test.mp4 >/dev/null

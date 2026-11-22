@@ -1,6 +1,7 @@
 package ai.onezion.phoneclip;
 
 import android.content.Context;
+import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaExtractor;
@@ -8,15 +9,19 @@ import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaMuxer;
 import android.net.Uri;
-import android.view.Surface;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 
-/** Re-encodes a video to 720p H.264 and copies the original audio track. */
+/**
+ * Re-encodes a video to 720p H.264 and copies the original audio track.
+ * Uses decoded YUV Images as encoder input: the surface path produced no frames
+ * on the Qualcomm Codec2 stack (encoder stayed empty until EOS).
+ */
 final class VideoCompressor {
     private static final int MAX_EDGE = 1280;
     private static final int BITRATE = 2_500_000;
+    private static final float FPS = 30f;
 
     static File compress(Context ctx, Uri uri, String baseName) throws Exception {
         MediaExtractor video = new MediaExtractor();
@@ -27,7 +32,6 @@ final class VideoCompressor {
         MediaMuxer mux = null;
         MediaCodec dec = null;
         MediaCodec enc = null;
-        Surface surface = null;
         try {
             int vTrack = -1;
             MediaFormat source = null;
@@ -58,7 +62,6 @@ final class VideoCompressor {
                     && audioFormat.getString(MediaFormat.KEY_MIME) != null
                     && audioFormat.getString(MediaFormat.KEY_MIME).contains("mp4a");
             if (keepAudio) {
-                // an empty audio track makes MediaMuxer.stop() throw
                 audio.selectTrack(aTrack);
                 ByteBuffer probe = ByteBuffer.allocateDirect(1 << 16);
                 if (audio.readSampleData(probe, 0) < 0) keepAudio = false;
@@ -91,15 +94,17 @@ final class VideoCompressor {
             enc = MediaCodec.createEncoderByType("video/avc");
             MediaFormat target = MediaFormat.createVideoFormat("video/avc", outW, outH);
             target.setInteger(MediaFormat.KEY_BIT_RATE, BITRATE);
-            target.setInteger(MediaFormat.KEY_FRAME_RATE, 30);
+            target.setInteger(MediaFormat.KEY_FRAME_RATE, (int) FPS);
             target.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
             target.setInteger(MediaFormat.KEY_COLOR_FORMAT,
-                    MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+                    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
             enc.configure(target, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
-            surface = enc.createInputSurface();
 
             dec = MediaCodec.createDecoderByType(source.getString(MediaFormat.KEY_MIME));
-            dec.configure(source, surface, null, 0);
+            MediaFormat decFmt = new MediaFormat(source);
+            decFmt.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
+            dec.configure(decFmt, null, null, 0);
 
             enc.start();
             dec.start();
@@ -112,13 +117,13 @@ final class VideoCompressor {
             int videoMuxTrack = -1;
             int audioMuxTrack = -1;
             long lastOutput = System.currentTimeMillis();
+            int inCount = 0, encOutCount = 0;
 
             while (!encoderDone) {
                 if (!inputDone) {
                     int in = dec.dequeueInputBuffer(10_000);
                     if (in >= 0) {
                         ByteBuffer buf = dec.getInputBuffer(in);
-                        // readSampleData throws when the sample exceeds the buffer, so size it first.
                         long need = video.getSampleSize();
                         if (need > sample.capacity()) {
                             if (need > (16L << 20)) throw new Exception("样本过大：" + need);
@@ -141,6 +146,7 @@ final class VideoCompressor {
                             dec.queueInputBuffer(in, 0, size, video.getSampleTime(),
                                     video.getSampleFlags());
                             video.advance();
+                            inCount++;
                         }
                     }
                 }
@@ -149,10 +155,30 @@ final class VideoCompressor {
                     int outIdx = dec.dequeueOutputBuffer(info, 0);
                     if (outIdx >= 0) {
                         boolean eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
-                        dec.releaseOutputBuffer(outIdx, true);
-                        if (eos) {
+                        if (!eos) {
+                            int encIn = enc.dequeueInputBuffer(10_000);
+                            if (encIn >= 0) {
+                                Image src = dec.getOutputImage(outIdx);
+                                Image dst = enc.getInputImage(encIn);
+                                int chromaW = Math.max(1, outW / 2);
+                                int chromaH = Math.max(1, outH / 2);
+                                copyPlane(src.getPlanes()[0], dst.getPlanes()[0], outW, outH);
+                                copyPlane(src.getPlanes()[1], dst.getPlanes()[1], chromaW, chromaH);
+                                copyPlane(src.getPlanes()[2], dst.getPlanes()[2], chromaW, chromaH);
+                                enc.queueInputBuffer(encIn, 0, outW * outH * 3 / 2,
+                                        info.presentationTimeUs, 0);
+                                dec.releaseOutputBuffer(outIdx, false);
+                            } else {
+                                dec.releaseOutputBuffer(outIdx, false);
+                            }
+                        } else {
+                            dec.releaseOutputBuffer(outIdx, false);
                             decoderDone = true;
-                            enc.signalEndOfInputStream();
+                            int encIn = enc.dequeueInputBuffer(10_000);
+                            if (encIn >= 0) {
+                                enc.queueInputBuffer(encIn, 0, 0, info.presentationTimeUs,
+                                        MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                            }
                         }
                     }
                 }
@@ -180,6 +206,7 @@ final class VideoCompressor {
                         mux.writeSampleData(videoMuxTrack, buf, info);
                     }
                     enc.releaseOutputBuffer(outIdx, false);
+                    encOutCount++;
                     lastOutput = System.currentTimeMillis();
                     if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                         encoderDone = true;
@@ -207,6 +234,8 @@ final class VideoCompressor {
                 }
             }
 
+            android.util.Log.i("PhoneClip", "compress: in=" + inCount
+                    + " encOut=" + encOutCount + " ms=" + (System.currentTimeMillis() - startedAt));
             if (muxStarted) mux.stop();
             return out;
         } finally {
@@ -219,9 +248,21 @@ final class VideoCompressor {
                 enc.release();
             }
             if (mux != null) mux.release();
-            if (surface != null) surface.release();
             video.release();
             audio.release();
+        }
+    }
+
+    private static void copyPlane(Image.Plane src, Image.Plane dst, int w, int h) {
+        ByteBuffer s = src.getBuffer();
+        ByteBuffer d = dst.getBuffer();
+        int srs = src.getRowStride(), sps = src.getPixelStride();
+        int drs = dst.getRowStride(), dps = dst.getPixelStride();
+        for (int y = 0; y < h; y++) {
+            int sBase = y * srs, dBase = y * drs;
+            for (int x = 0; x < w; x++) {
+                d.put(dBase + x * dps, s.get(sBase + x * sps));
+            }
         }
     }
 
