@@ -53,30 +53,45 @@ public class UpdateActivity extends Activity {
                 finish();
                 return;
             }
-            try {
-                PackageInstaller installer = getPackageManager().getPackageInstaller();
-                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
-                        PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-                params.setAppPackageName(getPackageName());
-                int sessionId = installer.createSession(params);
-                PackageInstaller.Session session = installer.openSession(sessionId);
-                try (OutputStream out = session.openWrite("base.apk", 0, apk.length());
-                     FileInputStream in = new FileInputStream(apk)) {
-                    byte[] buf = new byte[65536];
-                    int n;
-                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                    session.fsync(out);
-                }
-                Intent callback = new Intent(this, InstallResultReceiver.class);
-                PendingIntent pending = PendingIntent.getBroadcast(this, sessionId, callback,
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
-                session.commit(pending.getIntentSender());
-                session.close();
-                finish();
-            } catch (Exception e) {
-                done("安装失败: " + e.getClass().getSimpleName());
-            }
+            new Thread(() -> writeSession(apk), "update-install").start();
         });
+    }
+
+    private void writeSession(File apk) {
+        PackageInstaller installer = getPackageManager().getPackageInstaller();
+        PackageInstaller.Session session = null;
+        int sessionId = -1;
+        try {
+            PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+                    PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+            params.setAppPackageName(getPackageName());
+            sessionId = installer.createSession(params);
+            session = installer.openSession(sessionId);
+            try (OutputStream out = session.openWrite("base.apk", 0, apk.length());
+                 FileInputStream in = new FileInputStream(apk)) {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                session.fsync(out);
+            }
+            Intent callback = new Intent(this, InstallResultReceiver.class);
+            PendingIntent pending = PendingIntent.getBroadcast(this, sessionId, callback,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            session.commit(pending.getIntentSender());
+            session.close();
+            session = null;
+            apk.delete();
+            runOnUiThread(this::finish);
+        } catch (Exception e) {
+            if (session != null) {
+                try { session.abandon(); } catch (Exception ignored) {}
+                try { session.close(); } catch (Exception ignored) {}
+            }
+            if (sessionId >= 0) {
+                try { installer.abandonSession(sessionId); } catch (Exception ignored) {}
+            }
+            done("安装失败: " + e.getClass().getSimpleName());
+        }
     }
 
     private void done(String msg) {

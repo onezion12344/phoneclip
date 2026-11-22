@@ -43,7 +43,7 @@ public class ShareActivity extends Activity {
     }
 
     /** Copy into our storage (so the URI grant survives), set the phone clipboard, upload. */
-    static void copyAndPublish(android.content.Context ctx, ArrayList<Uri> uris) throws Exception {
+    static boolean copyAndPublish(android.content.Context ctx, ArrayList<Uri> uris) throws Exception {
         java.io.File dir = new java.io.File(ctx.getFilesDir(), "share");
         dir.mkdirs();
         prune(dir);
@@ -99,20 +99,23 @@ public class ShareActivity extends Activity {
         svc.putExtra("action", "offer");
         svc.putStringArrayListExtra("paths", paths);
         svc.putStringArrayListExtra("mimes", mimes);
-        startServiceSafely(ctx, svc);
+        return startServiceSafely(ctx, svc);
     }
 
     /** Android 12+ throws when a background context starts a foreground service. */
-    static void startServiceSafely(android.content.Context ctx, Intent svc) {
+    static boolean startServiceSafely(android.content.Context ctx, Intent svc) {
         try {
             if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(svc);
             else ctx.startService(svc);
+            return true;
         } catch (Exception e) {
             android.util.Log.w("PhoneClip", "startForegroundService failed, retrying", e);
             try {
                 ctx.startService(svc);
+                return true;
             } catch (Exception e2) {
                 android.util.Log.w("PhoneClip", "service start failed", e2);
+                return false;
             }
         }
     }

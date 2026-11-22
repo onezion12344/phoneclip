@@ -67,8 +67,12 @@ final class Actions {
         toast(c, "正在复制…");
         new Thread(() -> {
             try {
-                ShareActivity.copyAndPublish(c, uris);
-                toast(c, uris.size() == 1 ? "已复制到手机 + Mac" : "已复制 " + uris.size() + " 个文件");
+                boolean started = ShareActivity.copyAndPublish(c, uris);
+                if (started) {
+                    toast(c, uris.size() == 1 ? "已复制到手机 + Mac" : "已复制 " + uris.size() + " 个文件");
+                } else {
+                    toast(c, "已复制到手机；Mac 同步未启动，请打开 App 后重试");
+                }
             } catch (Exception e) {
                 toast(c, "失败：" + msg(e));
             } finally {

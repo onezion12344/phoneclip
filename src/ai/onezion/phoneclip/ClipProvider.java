@@ -59,7 +59,11 @@ public class ClipProvider extends ContentProvider {
         if (path.endsWith(".pdf")) return "application/pdf";
         if (path.endsWith(".txt")) return "text/plain";
         if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
-        return "image/png";
+        if (path.endsWith(".png")) return "image/png";
+        if (path.endsWith(".webm")) return "video/webm";
+        if (path.endsWith(".mkv")) return "video/x-matroska";
+        if (path.endsWith(".wav")) return "audio/wav";
+        return "application/octet-stream";
     }
 
     @Override public Uri insert(Uri uri, ContentValues values) { return null; }

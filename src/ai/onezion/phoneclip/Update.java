@@ -113,6 +113,9 @@ final class Update {
     }
 
     static void checkAndNotify(Context ctx) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && ctx.checkSelfPermission(
+                android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) return;
         try {
             Info info = latest();
             String installed = installed(ctx);
