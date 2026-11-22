@@ -387,6 +387,18 @@ final class PhoneClipServer {
         }
     }
 
+    private func logLine(_ line: String) {
+        let path = "/tmp/phoneclip-requests.log"
+        guard let data = (line + "\n").data(using: .utf8) else { return }
+        if let h = FileHandle(forWritingAtPath: path) {
+            h.seekToEndOfFile()
+            h.write(data)
+            h.closeFile()
+        } else {
+            try? data.write(to: URL(fileURLWithPath: path))
+        }
+    }
+
     private func authorized(_ req: HTTPRequest) -> Bool {
         let h = req.headers["x-phoneclip-token"] ?? ""
         let q = req.query["token"] ?? ""
@@ -394,6 +406,7 @@ final class PhoneClipServer {
     }
 
     private func dispatch(_ req: HTTPRequest, _ conn: NWConnection) {
+        logLine("\(req.method) \(req.path)")
         guard authorized(req) else {
             respond(conn, status: 403, body: Data("forbidden".utf8))
             return
