@@ -136,7 +136,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildPrefs() {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 250),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = "PhoneClip 设置"
+        let ver = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        w.title = "PhoneClip 设置 · v\(ver)"
         w.center()
         w.isReleasedWhenClosed = false
         let v = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 250))

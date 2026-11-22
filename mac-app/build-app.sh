@@ -14,6 +14,10 @@ swiftc -O "$HERE/Sources/"*.swift \
   -framework AppKit -framework Network
 
 cp "$HERE/Info.plist" "$APP/Contents/Info.plist"
+V=$(cat "$HERE/VERSION" 2>/dev/null || echo 0.0.0)
+plutil -replace CFBundleShortVersionString -string "$V" "$APP/Contents/Info.plist"
+CODE=$(/usr/bin/python3 -c 'import sys;v=(sys.argv[1].split(".")+["0","0"])[:3];print(int(v[0])*10000+int(v[1])*100+int(v[2]))' "$V")
+plutil -replace CFBundleVersion -string "$CODE" "$APP/Contents/Info.plist"
 
 ICON="$HERE/../docs/icon.png"
 if [ -f "$ICON" ]; then
