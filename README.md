@@ -163,3 +163,4 @@ phoneclip/
 - 界面：底部 tab（连接/照片/录音/文件/设置），逐页截图确认
 - 照片每日 VLM observation：mock 端点端到端通过（请求含 39 KB 图片，observation 写入 Mac）
 - 录音每日同步：真实录音（/sdcard/Recordings）→ AAC 96k → 落到 Mac
+- 设置页各 tab 独立保存；「立即识别一张 / 立即同步一次」可手动触发

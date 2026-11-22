@@ -142,9 +142,17 @@ public class ClipService extends Service {
         if ("push".equals(action)) bg.post(this::pushLocalClipQuietly);
         if ("update".equals(action)) bg.post(updateTask);
         if ("sharetest".equals(action)) bg.post(this::shareTest);
+        if ("resetconfig".equals(action)) bg.post(() -> {
+            String server = Config.server(this), token = Config.token(this);
+            getSharedPreferences("phoneclip", MODE_PRIVATE).edit().clear().apply();
+            Config.save(this, server, token);
+            Config.setEnabled(this, true);
+            Log.i(TAG, "config reset (server/token kept)");
+        });
         if ("clearsettings".equals(action)) bg.post(() -> {
             Config.saveTranscribe(this, "", "", "", false);
-            Log.i(TAG, "transcription settings cleared");
+            Config.saveVlm(this, false, "", "", "", Config.vlmHour(this));
+            Log.i(TAG, "transcription and vision settings cleared");
         });
         if ("vlmtest".equals(action)) bg.post(() -> Jobs.photoVlm(this, true));
         if ("dumptrans".equals(action)) bg.post(() -> {
