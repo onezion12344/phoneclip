@@ -50,7 +50,7 @@ cd phoneclip
 ./install-mac.sh
 ```
 
-也可以直接从 [Releases](https://github.com/onezion12344/phoneclip/releases) 下载 `PhoneClip-<版本>.dmg`，拖进「应用程序」；然后把 `install-mac.sh` 里那段 LaunchAgent 内容（或用 `launchctl`）配一次登录自启。
+也可以直接从 [Releases](https://github.com/onezion12344/phoneclip/releases) 下载 `PhoneClip-<版本>.dmg`，拖进「应用程序」（自签 App，首次打开请右键 → 打开）；然后把 `install-mac.sh` 里那段 LaunchAgent 内容（或用 `launchctl`）配一次登录自启。
 
 脚本会编译 `PhoneClip.app`（约 1.3 MB）装到 `/Applications`，注册登录自启，并打印：
 

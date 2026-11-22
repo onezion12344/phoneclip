@@ -57,6 +57,13 @@ final class VideoCompressor {
             boolean keepAudio = audioFormat != null
                     && audioFormat.getString(MediaFormat.KEY_MIME) != null
                     && audioFormat.getString(MediaFormat.KEY_MIME).contains("mp4a");
+            if (keepAudio) {
+                // an empty audio track makes MediaMuxer.stop() throw
+                audio.selectTrack(aTrack);
+                ByteBuffer probe = ByteBuffer.allocateDirect(1 << 16);
+                if (audio.readSampleData(probe, 0) < 0) keepAudio = false;
+                audio.seekTo(0);
+            }
 
             int w = source.getInteger(MediaFormat.KEY_WIDTH);
             int h = source.getInteger(MediaFormat.KEY_HEIGHT);
