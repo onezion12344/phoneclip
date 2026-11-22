@@ -6,6 +6,7 @@ import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.widget.Toast;
 
@@ -98,7 +99,22 @@ public class ShareActivity extends Activity {
         svc.putExtra("action", "offer");
         svc.putStringArrayListExtra("paths", paths);
         svc.putStringArrayListExtra("mimes", mimes);
-        ctx.startForegroundService(svc);
+        startServiceSafely(ctx, svc);
+    }
+
+    /** Android 12+ throws when a background context starts a foreground service. */
+    static void startServiceSafely(android.content.Context ctx, Intent svc) {
+        try {
+            if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(svc);
+            else ctx.startService(svc);
+        } catch (Exception e) {
+            android.util.Log.w("PhoneClip", "startForegroundService failed, retrying", e);
+            try {
+                ctx.startService(svc);
+            } catch (Exception e2) {
+                android.util.Log.w("PhoneClip", "service start failed", e2);
+            }
+        }
     }
 
     /** Keep only the most recent shares; older clipboard files are unlikely to be pasted. */

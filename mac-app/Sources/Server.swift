@@ -159,7 +159,7 @@ final class PhoneClipServer {
         guard !commands.isEmpty, let (wid, w) = waiters.first else { return }
         waiters[wid] = nil
         w.timeout?.cancel()
-        respondStateOrCommand(w.conn)
+        respondStateOrCommand(w.conn, since: w.since)
     }
 
     init(rootDir: String, portOverride: Int? = nil) {
@@ -340,7 +340,7 @@ final class PhoneClipServer {
         for (id, w) in Array(waiters) where w.since < rev {
             w.timeout?.cancel()
             waiters[id] = nil
-            respondStateOrCommand(w.conn)
+            respondStateOrCommand(w.conn, since: w.since)
         }
         serveWaiting()
     }
@@ -524,18 +524,23 @@ final class PhoneClipServer {
             queue.asyncAfter(deadline: .now() + .seconds(wait), execute: timeout)
             return
         }
-        respondStateOrCommand(conn)
+        respondStateOrCommand(conn, since: since)
     }
 
-    private func respondStateOrCommand(_ conn: NWConnection) {
+    private func respondStateOrCommand(_ conn: NWConnection, since: Int64 = -1) {
         var obj: [String: Any] = ["rev": rev, "kind": kind]
-        if kind == "text" { obj["text"] = text }
-        if kind == "image" { obj["url"] = "/v1/clip/image?rev=\(rev)" }
+        let fresh = since < rev && kind != ""
+        if fresh {
+            if kind == "text" { obj["text"] = text }
+            if kind == "image" { obj["url"] = "/v1/clip/image?rev=\(rev)" }
+        } else {
+            obj["kind"] = ""
+        }
         if !commands.isEmpty {
             let c = commands.removeFirst()
             obj["cmd"] = ["id": c.id, "op": c.op, "path": c.path]
         }
-        if kind == "" && obj["cmd"] == nil {
+        if !fresh && obj["cmd"] == nil {
             respond(conn, status: 204, body: Data())
             return
         }

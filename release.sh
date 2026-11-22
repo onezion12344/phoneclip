@@ -17,13 +17,22 @@ sed -i '' -E "s/android:versionCode=\"[0-9]+\"/android:versionCode=\"$CODE\"/" "
 sed -i '' -E "s/android:versionName=\"[^\"]+\"/android:versionName=\"$V\"/" "$HERE/AndroidManifest.xml"
 
 "$HERE/build.sh" "$HERE/build/PhoneClip.apk" >/dev/null
-echo "built $(ls -lh "$HERE/build/PhoneClip.apk" | awk '{print $5}') for v$V (code $CODE)"
+"$HERE/mac-app/build-app.sh" >/dev/null
+DMG="$HERE/build/PhoneClip-$V.dmg"
+rm -f "$DMG"
+STAGE="$(mktemp -d)"
+cp -R "$HERE/mac-app/build/PhoneClip.app" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+hdiutil create -quiet -volname "PhoneClip $V" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+rm -rf "$STAGE"
+
+echo "built $(ls -lh "$HERE/build/PhoneClip.apk" | awk '{print $5}') APK + $(ls -lh "$DMG" | awk '{print $5}') DMG for v$V (code $CODE)"
 
 cat <<EOF
 
 仓库里推好源码后，发布：
 
-  gh release create v$V "$HERE/build/PhoneClip.apk" \\
+  gh release create v$V "$HERE/build/PhoneClip.apk" "$DMG" \\
     --repo onezion12344/phoneclip \\
     --title "PhoneClip $V" --notes "PhoneClip $V"
 

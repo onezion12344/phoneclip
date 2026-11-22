@@ -90,7 +90,7 @@ public class MainActivity extends Activity {
         if (copy != null) {
             Intent i = new Intent(this, ClipService.class);
             i.putExtra("action", "copy").putExtra("text", copy);
-            startForegroundService(i);
+            ShareActivity.startServiceSafely(this, i);
         }
     }
 
@@ -569,7 +569,7 @@ public class MainActivity extends Activity {
         Config.save(this, serverField.getText().toString(), tokenField.getText().toString());
         Intent i = new Intent(this, ClipService.class);
         i.putExtra("action", action);
-        startForegroundService(i);
+        ShareActivity.startServiceSafely(this, i);
         statusView.setText("Sent: " + action);
     }
 

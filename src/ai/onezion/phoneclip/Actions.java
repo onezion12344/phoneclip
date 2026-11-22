@@ -94,7 +94,7 @@ final class Actions {
         i.putExtra("action", "compress");
         i.putExtra("uri", uri.toString());
         i.putExtra("name", baseName(c, uri));
-        c.startForegroundService(i);
+        ShareActivity.startServiceSafely(c, i);
     }
 
     private static void transcribe(Context c, Uri uri, String mime) {
