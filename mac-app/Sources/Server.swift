@@ -371,7 +371,7 @@ final class PhoneClipServer {
             guard let self else { return }
             var buf = buffer
             if let data { buf.append(data) }
-            if buf.count > (64 << 20) {
+            if buf.count > (220 << 20) {
                 self.respond(conn, status: 413, body: Data())
                 return
             }

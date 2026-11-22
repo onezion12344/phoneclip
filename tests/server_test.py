@@ -166,6 +166,17 @@ def main():
                     ctype="text/plain")
         check("oversized batch rejected", st == 400, st)
 
+        big = os.path.join(DOWNLOADS, "server-test-big.bin")
+        if os.path.exists(big):
+            os.remove(big)
+        payload = b"x" * (70 << 20)
+        st, _ = req("POST", "/v1/file?name=server-test-big.bin&silent=1", token,
+                    payload, ctype="application/octet-stream", timeout=60)
+        size = os.path.getsize(big) if os.path.exists(big) else 0
+        check("70 MB upload accepted", st == 200 and size == len(payload), (st, size))
+        if os.path.exists(big):
+            os.remove(big)
+
         stop.set()
     finally:
         proc.terminate()
