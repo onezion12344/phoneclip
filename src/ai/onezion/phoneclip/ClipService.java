@@ -527,7 +527,8 @@ public class ClipService extends Service {
         File dir = new File(path);
         if (!dir.isDirectory()) throw new Exception("not a directory");
         String[] names = dir.list();
-        return names == null ? 0 : names.length;
+        if (names == null) throw new Exception("directory not readable");
+        return names.length;
     }
 
     static boolean isImageUri(Context ctx, Uri uri) {

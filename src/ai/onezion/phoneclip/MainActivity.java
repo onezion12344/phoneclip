@@ -348,6 +348,7 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (filesAccessView != null) filesAccessView.setText(filesAccessLabel());
+        refresh();
     }
 
     private View aboutCard() {
@@ -662,9 +663,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    private boolean canReadPhotos() {
+        if (Build.VERSION.SDK_INT >= 34) {
+            return checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES)
+                    == PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            return checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
     private void refresh() {
         boolean running = Config.enabled(this) && ClipService.isRunning(this);
-        if (statusText != null) statusText.setText(running ? "运行中" : "已停止");
+        boolean photos = canReadPhotos();
+        if (statusText != null) {
+            statusText.setText(!running ? "已停止" : photos ? "运行中" : "运行中（照片权限未授予）");
+        }
+        if (running && !photos && statusView != null) {
+            statusView.setText("没有照片读取权限，拍照不会自动同步。点上方「启动」会再次申请。");
+        }
         if (statusDot != null) {
             GradientDrawable dot = new GradientDrawable();
             dot.setShape(GradientDrawable.OVAL);
@@ -733,8 +755,9 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(code, perms, results);
         for (int i = 0; i < results.length; i++) {
             if (results[i] != PackageManager.PERMISSION_GRANTED) {
-                toast("Permission denied: " + perms[i]);
+                toast("权限被拒绝：" + perms[i]);
             }
         }
+        refresh();
     }
 }
