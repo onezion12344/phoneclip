@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
     private TextView filesAccessView;
     private View statusDot;
     private TextView statusText;
+    private boolean photoWarning;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -684,8 +685,16 @@ public class MainActivity extends Activity {
         if (statusText != null) {
             statusText.setText(!running ? "已停止" : photos ? "运行中" : "运行中（照片权限未授予）");
         }
-        if (running && !photos && statusView != null) {
-            statusView.setText("没有照片读取权限，拍照不会自动同步。点上方「启动」会再次申请。");
+        if (running && !photos) {
+            photoWarning = true;
+            if (statusView != null) {
+                statusView.setText("没有照片读取权限，拍照不会自动同步。点上方「启动」会再次申请。");
+            }
+        } else if (photoWarning) {
+            photoWarning = false;
+            if (statusView != null) {
+                statusView.setText("照片自动同步；文字/文件用上方按钮或「发送剪贴板」磁贴。");
+            }
         }
         if (statusDot != null) {
             GradientDrawable dot = new GradientDrawable();
