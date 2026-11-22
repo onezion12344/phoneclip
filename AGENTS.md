@@ -57,9 +57,6 @@ app binary makes the release exit 1 with the manifest untouched.
 - **Mac side verified locally**: HTTP protocol, long-poll latency, sidecar command
   queue + file-browser UI (list → select → download), transcript folder, menu bar,
   LaunchAgent restart, DMG contents.
-- **Phone side not yet verified on a device** (both phones were offline on 2026-11-22):
-  sidecar list/get, transcription, 720p/AAC compression, redesigned UI and icon.
-  Run `./selftest.sh <serial>` or the in-app 「运行自检」 when a device is reachable.
 
 Verification status (2026-11-23, OnePlus Ace 3 Pro / PJX110):
 ``./selftest.sh`` passes 5/5 — sidecar list + download, in-app transcription with Mac sync,
