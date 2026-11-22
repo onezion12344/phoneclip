@@ -18,11 +18,12 @@ no Electron, no ADB at runtime.
 | Deploy to phone | `./deploy-phone.sh <serial>` (install, permissions, configure, test image) |
 | Device self-test | `./selftest.sh <serial>` (sidecar, transcription mock, 720p, AAC) |
 | Mac protocol tests | `python3 tests/server_test.py` (10 assertions, private port) |
+| Release | `./release.sh X.Y.Z`, then `gh release create vX.Y.Z build/PhoneClip.apk build/PhoneClip-X.Y.Z.dmg` |
 
 `release.sh` and `install-mac.sh` run the protocol tests and abort on failure
 (`SKIP_TESTS=1` bypasses the install gate). Negative control verified: removing the
 app binary makes the release exit 1 with the manifest untouched.
-| Release | `./release.sh X.Y.Z`, then `gh release create vX.Y.Z build/PhoneClip.apk build/PhoneClip-X.Y.Z.dmg` |
+
 
 ## Architecture
 - Phone long-polls `GET /v1/clip?rev=N&wait=S`; the Mac answer may also carry a
