@@ -32,11 +32,16 @@ ok() { echo "PASS  $*"; pass=$((pass+1)); }
 no() { echo "FAIL  $*"; fail=$((fail+1)); }
 
 reachable() { "${ADB[@]}" shell "toybox nc -z -w 2 $1 47411 >/dev/null 2>&1; echo \$?" | tr -d '\r'; }
-PHONE_IP=""
-if [ "$(reachable "$TSIP")" = "0" ]; then PHONE_IP=$TSIP
-elif [ -n "$LANIP" ] && [ "$(reachable "$LANIP")" = "0" ]; then PHONE_IP=$LANIP
-else echo "phone cannot reach the Mac (Tailscale/LAN); fix network first"; exit 1; fi
-URL="http://$PHONE_IP:47411"
+if [ -n "${SERVER_URL:-}" ]; then
+  URL=$SERVER_URL
+  PHONE_IP=$(printf '%s' "$URL" | sed -E 's#^https?://([^:/]+).*#\1#')
+else
+  PHONE_IP=""
+  if [ "$(reachable "$TSIP")" = "0" ]; then PHONE_IP=$TSIP
+  elif [ -n "$LANIP" ] && [ "$(reachable "$LANIP")" = "0" ]; then PHONE_IP=$LANIP
+  else echo "phone cannot reach the Mac (Tailscale/LAN); fix network first"; exit 1; fi
+  URL="http://$PHONE_IP:47411"
+fi
 echo "device $SERIAL  url $URL"
 
 "$HERE/build.sh" "$HERE/build/PhoneClip.apk" >/dev/null
