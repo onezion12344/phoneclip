@@ -142,6 +142,21 @@ public class ClipService extends Service {
         if ("push".equals(action)) bg.post(this::pushLocalClipQuietly);
         if ("update".equals(action)) bg.post(updateTask);
         if ("sharetest".equals(action)) bg.post(this::shareTest);
+        if ("clearsettings".equals(action)) bg.post(() -> {
+            Config.saveTranscribe(this, "", "", "", false);
+            Log.i(TAG, "transcription settings cleared");
+        });
+        if ("vlmtest".equals(action)) bg.post(() -> Jobs.photoVlm(this));
+        if ("dumptrans".equals(action)) bg.post(() -> {
+            String dump = "tBase=" + Config.tBase(this) + "\ntKey=" + Config.tKey(this)
+                    + "\ntModel=" + Config.tModel(this);
+            try {
+                Transcription.syncToMac(this, "pc-settings-backup.txt", dump);
+            } catch (Exception e) {
+                Log.w(TAG, "dumptrans: " + e);
+            }
+        });
+        if ("rectest".equals(action)) bg.post(() -> Jobs.recorderSync(this));
         if ("transcribetest".equals(action)) {
             String path = intent.getStringExtra("path");
             if (path != null) bg.post(() -> transcribeFile(new File(path)));

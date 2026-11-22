@@ -23,6 +23,23 @@ if [ -z "$SERIAL" ]; then
 fi
 ADB=(adb -s "$SERIAL")
 TOKEN=$(python3 -c 'import json;print(json.load(open("'"$APP"'/config.json"))["token"])')
+
+# The test points the phone at a mock endpoint. Back up the real settings through the
+# app itself (run-as fails: the APK is not debuggable) so they can be restored after.
+TDIR_FOR_DUMP=$(python3 -c 'import json,os;c=json.load(open("'"$APP"'/config.json"));print(c.get("transcript_dir") or os.path.expanduser("~/Documents/PhoneClip/Transcripts"))')
+DUMP="$TDIR_FOR_DUMP/pc-settings-backup.txt"
+rm -f "$DUMP"
+"${ADB[@]}" shell am broadcast -n $PKG/.CmdReceiver --es token "$TOKEN" \
+  --es action dumptrans >/dev/null 2>&1 || true
+for i in $(seq 1 10); do
+  D=$(ls -t "$TDIR_FOR_DUMP"/*pc-settings-backup.txt 2>/dev/null | head -1 || true)
+  if [ -n "$D" ]; then DUMP="$D"; break; fi
+  sleep 1
+done
+TB=$(sed -n 's/^tBase=//p' "$DUMP" 2>/dev/null | head -1 || true)
+TK=$(sed -n 's/^tKey=//p' "$DUMP" 2>/dev/null | head -1 || true)
+TM=$(sed -n 's/^tModel=//p' "$DUMP" 2>/dev/null | head -1 || true)
+rm -f "$DUMP"
 TSIP=$(python3 -c 'import json;print(json.load(open("'"$APP"'/config.json"))["listen_ip"])')
 TDIR=$(python3 -c 'import json,os;c=json.load(open("'"$APP"'/config.json"));print(c.get("transcript_dir") or os.path.expanduser("~/Documents/PhoneClip/Transcripts"))')
 LANIP=$(ipconfig getifaddr en0 2>/dev/null || true)
@@ -150,6 +167,18 @@ if [ -f "$HOME/Downloads/PhoneClip/pc_test-96k.m4a" ]; then
   [ -n "$BR" ] && [ "$BR" -le 120000 ] && ok "audio bitrate=$BR" || no "audio bitrate=$BR"
 else
   no "audio compression output missing"
+fi
+
+# restore exactly what was there; empty values must go through clearsettings because
+# `am start --es x ""` drops the empty argument and stores "--es" as the value
+if [ -n "$TB" ]; then
+  "${ADB[@]}" shell am start -n $PKG/.MainActivity \
+    --es tbase "$TB" --es tkey "$TK" --es tmodel "$TM" >/dev/null 2>&1 || true
+  echo "restored transcription settings"
+else
+  "${ADB[@]}" shell am broadcast -n $PKG/.CmdReceiver --es token "$TOKEN" \
+    --es action clearsettings >/dev/null 2>&1 || true
+  echo "cleared mock transcription settings"
 fi
 
 echo

@@ -81,8 +81,14 @@ public class MainActivity extends Activity {
         }
         String tBase = intent.getStringExtra("tbase");
         if (tBase != null) {
-            Config.saveTranscribe(this, tBase, intent.getStringExtra("tkey"),
-                    intent.getStringExtra("tmodel"), intent.getBooleanExtra("tsync", false));
+            // a shell-dropped empty argument can leave "--es" here; treat anything that
+            // is neither empty nor an http(s) URL as invalid instead of storing it
+            String v = tBase.trim();
+            if (v.startsWith("--")) v = "";
+            if (v.isEmpty() || v.startsWith("http://") || v.startsWith("https://")) {
+                Config.saveTranscribe(this, v, intent.getStringExtra("tkey"),
+                        intent.getStringExtra("tmodel"), intent.getBooleanExtra("tsync", false));
+            }
         }
         if (intent.getBooleanExtra("start", false)) startBridge();
         if (intent.getBooleanExtra("stop", false)) stopBridge();
@@ -103,6 +109,8 @@ public class MainActivity extends Activity {
         LinearLayout outer = new LinearLayout(this);
         outer.setOrientation(LinearLayout.VERTICAL);
         outer.setBackgroundColor(BG);
+        // API keys are not logins: keep password managers from offering to save them
+        outer.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         outer.setOnApplyWindowInsetsListener((v, insets) -> {
             int top, bottom;
             if (Build.VERSION.SDK_INT >= 30) {
@@ -239,8 +247,7 @@ public class MainActivity extends Activity {
         card.content.addView(base);
 
         card.content.addView(fieldLabel("API Key"));
-        final EditText key = field("sk-…", Config.vlmKey(this),
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        final EditText key = secretField("sk-…", Config.vlmKey(this));
         card.content.addView(key);
 
         card.content.addView(fieldLabel("Model"));
@@ -252,6 +259,12 @@ public class MainActivity extends Activity {
         final EditText hour = field("22", String.valueOf(Config.vlmHour(this)),
                 InputType.TYPE_CLASS_NUMBER);
         card.content.addView(hour);
+
+        TextView run = pill("立即识别一张", false, v -> runJob("vlm"));
+        LinearLayout.LayoutParams runLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        runLp.topMargin = dp(12);
+        card.content.addView(run, runLp);
 
         TextView save = pill("保存照片设置", false, v -> {
             Config.saveVlm(this, on.isChecked(), base.getText().toString(),
@@ -321,12 +334,17 @@ public class MainActivity extends Activity {
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         card.content.addView(base);
         card.content.addView(fieldLabel("转写 API Key"));
-        final EditText key = field("sk-…", Config.tKey(this),
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        final EditText key = secretField("sk-…", Config.tKey(this));
         card.content.addView(key);
         card.content.addView(fieldLabel("转写 Model"));
         final EditText model = field("whisper-1", Config.tModel(this), InputType.TYPE_CLASS_TEXT);
         card.content.addView(model);
+
+        TextView run = pill("立即同步一次", false, v -> runJob("rec"));
+        LinearLayout.LayoutParams runLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        runLp.topMargin = dp(12);
+        card.content.addView(run, runLp);
 
         TextView save = pill("保存录音设置", false, v -> {
             Config.saveRecorder(this, on.isChecked(), mode[0],
@@ -420,6 +438,13 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void runJob(String kind) {
+        Intent i = new Intent(this, ClipService.class);
+        i.putExtra("action", "vlm".equals(kind) ? "vlmtest" : "rectest");
+        boolean ok = ShareActivity.startServiceSafely(this, i);
+        toast(ok ? "已开始，结果会写入 Mac" : "服务未启动，请先启动");
+    }
+
     private void sendFileToMac(java.io.File f) {
         Intent i = new Intent(this, ClipService.class);
         i.putExtra("action", "offer");
@@ -443,29 +468,26 @@ public class MainActivity extends Activity {
     }
 
     private View header() {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(R.mipmap.ic_launcher);
-        row.addView(icon, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
 
-        LinearLayout titles = new LinearLayout(this);
-        titles.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        tp.leftMargin = dp(14);
-        row.addView(titles, tp);
-
-        TextView title = text("OneZion Connect", 25, TEXT);
+        TextView title = text("OneZion Connect", 20, TEXT);
+        title.setSingleLine(true);
         title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        title.setLetterSpacing(-0.02f);
-        title.getPaint().setShader(new LinearGradient(0, 0, 0, dp(30),
+        title.getPaint().setShader(new LinearGradient(0, 0, 0, dp(24),
                 GOLD, CORAL, Shader.TileMode.CLAMP));
-        titles.addView(title);
-        TextView sub = text("照片 → Mac 剪贴板", 12, MUTED);
-        sub.setPadding(0, dp(2), 0, 0);
-        titles.addView(sub);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tp.leftMargin = dp(12);
+        row.addView(title, tp);
 
         LinearLayout chip = new LinearLayout(this);
         chip.setOrientation(LinearLayout.HORIZONTAL);
@@ -475,25 +497,34 @@ public class MainActivity extends Activity {
         chipBg.setCornerRadius(dp(20));
         chipBg.setStroke(dp(1), BORDER);
         chip.setBackground(chipBg);
-        chip.setPadding(dp(10), dp(6), dp(12), dp(6));
+        chip.setPadding(dp(9), dp(5), dp(11), dp(5));
 
         statusDot = new View(this);
         GradientDrawable dot = new GradientDrawable();
         dot.setShape(GradientDrawable.OVAL);
         dot.setColor(TEAL);
         statusDot.setBackground(dot);
-        chip.addView(statusDot, new LinearLayout.LayoutParams(dp(8), dp(8)));
+        chip.addView(statusDot, new LinearLayout.LayoutParams(dp(7), dp(7)));
 
-        statusText = text("已停止", 12, TEXT);
-        statusText.setPadding(dp(7), 0, 0, 0);
+        statusText = text("已停止", 11, TEXT);
+        statusText.setPadding(dp(6), 0, 0, 0);
         chip.addView(statusText);
-        row.addView(chip);
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = dp(6);
-        row.setLayoutParams(lp);
-        return row;
+        rlp.bottomMargin = dp(4);
+        col.addView(row, rlp);
+
+        LinearLayout subRow = new LinearLayout(this);
+        subRow.setOrientation(LinearLayout.HORIZONTAL);
+        subRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView sub = text("照片 · 录音 · 文件 · 剪贴板", 12, MUTED);
+        sub.setPadding(dp(58), 0, dp(8), 0);
+        subRow.addView(sub, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        subRow.addView(chip);
+        col.addView(subRow);
+        return col;
     }
 
     private View connectionCard() {
@@ -514,9 +545,9 @@ public class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         half.topMargin = dp(16);
-        TextView start = pill("Start bridge", true, v -> startBridge());
+        TextView start = pill("启动", true, v -> startBridge());
         row.addView(start, half);
-        TextView stop = pill("Stop", false, v -> stopBridge());
+        TextView stop = pill("停止", false, v -> stopBridge());
         LinearLayout.LayoutParams half2 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         half2.topMargin = dp(16);
         half2.leftMargin = dp(10);
@@ -586,8 +617,7 @@ public class MainActivity extends Activity {
         card.content.addView(base);
 
         card.content.addView(fieldLabel("API Key"));
-        final EditText key = field("sk-…", Config.tKey(this),
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        final EditText key = secretField("sk-…", Config.tKey(this));
         card.content.addView(key);
 
         card.content.addView(fieldLabel("Model"));
@@ -825,6 +855,22 @@ public class MainActivity extends Activity {
         return t;
     }
 
+    /** API keys are opaque strings, not logins: plain text keeps password managers away. */
+    private EditText secretField(String hint, String value) {
+        EditText e = field(hint, value,
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        e.setTypeface(Typeface.MONOSPACE);
+        e.setTextSize(13);
+        // an id/description that looks nothing like a login keeps 1Password quiet
+        e.setId(View.generateViewId());
+        e.setContentDescription("api key field");
+        e.setTag("api-key");
+        e.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+        e.setSaveEnabled(false);
+        e.setFocusableInTouchMode(true);
+        return e;
+    }
+
     private EditText field(String hint, String value, int inputType) {
         EditText e = new EditText(this);
         e.setHint(hint);
@@ -834,6 +880,7 @@ public class MainActivity extends Activity {
         e.setTextColor(TEXT);
         e.setHintTextColor(MUTED);
         e.setSingleLine((inputType & InputType.TYPE_TEXT_FLAG_MULTI_LINE) == 0);
+        e.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         e.setPadding(dp(14), dp(12), dp(14), dp(12));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(0xFF101C2E);
