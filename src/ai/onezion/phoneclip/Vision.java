@@ -45,6 +45,8 @@ final class Vision {
         if (!key.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + key);
         byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
         c.setFixedLengthStreamingMode(payload.length);
+        android.util.Log.i("PhoneClip", "vlm req: jpeg=" + jpeg.length
+                + " payload=" + payload.length);
         try (OutputStream out = c.getOutputStream()) {
             out.write(payload);
         }

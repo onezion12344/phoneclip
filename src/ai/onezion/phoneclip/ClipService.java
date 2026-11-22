@@ -110,7 +110,7 @@ public class ClipService extends Service {
             long today = Jobs.startOfToday();
             if (Config.vlmOn(this) && hour >= Config.vlmHour(this)
                     && Config.lastVlmRun(this) < today) {
-                Jobs.photoVlm(this);
+                Jobs.photoVlm(this, false);
             }
             if (Config.recOn(this) && hour >= Config.recHour(this)
                     && Config.lastRecRun(this) < today) {
@@ -146,10 +146,14 @@ public class ClipService extends Service {
             Config.saveTranscribe(this, "", "", "", false);
             Log.i(TAG, "transcription settings cleared");
         });
-        if ("vlmtest".equals(action)) bg.post(() -> Jobs.photoVlm(this));
+        if ("vlmtest".equals(action)) bg.post(() -> Jobs.photoVlm(this, true));
         if ("dumptrans".equals(action)) bg.post(() -> {
             String dump = "tBase=" + Config.tBase(this) + "\ntKey=" + Config.tKey(this)
-                    + "\ntModel=" + Config.tModel(this);
+                    + "\ntModel=" + Config.tModel(this)
+                    + "\nvlmBase=" + Config.vlmBase(this)
+                    + "\nvlmOn=" + Config.vlmOn(this)
+                    + "\nvlmModel=" + Config.vlmModel(this)
+                    + "\nlastVlm=" + Config.lastVlmRun(this);
             try {
                 Transcription.syncToMac(this, "pc-settings-backup.txt", dump);
             } catch (Exception e) {

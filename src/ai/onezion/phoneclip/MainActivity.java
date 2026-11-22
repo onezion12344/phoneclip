@@ -90,6 +90,16 @@ public class MainActivity extends Activity {
                         intent.getStringExtra("tmodel"), intent.getBooleanExtra("tsync", false));
             }
         }
+        String vlmBase = intent.getStringExtra("vlmbase");
+        if (vlmBase != null) {
+            String v = vlmBase.trim();
+            if (v.startsWith("--")) v = "";
+            if (v.isEmpty() || v.startsWith("http")) {
+                Config.saveVlm(this, intent.getBooleanExtra("vlmon", true), v,
+                        intent.getStringExtra("vlmkey"),
+                        intent.getStringExtra("vlmmodel"), Config.vlmHour(this));
+            }
+        }
         if (intent.getBooleanExtra("start", false)) startBridge();
         if (intent.getBooleanExtra("stop", false)) stopBridge();
         if (intent.getBooleanExtra("newest", false)) serviceAction("newest");

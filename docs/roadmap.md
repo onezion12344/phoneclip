@@ -44,6 +44,8 @@ owner 目标：先把「连接侧」打通，并具备一些 ADB 能力。
 - **每日相册 / 录音巡检**：定时扫描新照片、录音并按规则归档或摘要。
 - **Personal Wiki 写入**：生成 entry / observation，写入个人 wiki（需先定 schema 与去重规则）。
 - **短信验证码读取**：优先 NotificationListenerService（读验证码通知）；
+  **实测依据（2026-11-23 通知栏截图）**：Microsoft / 上海12345 / 阿里云的验证码全部以通知形式出现，
+  正文形如「Use verification code 774435」「您的验证码为：637512」，可直接正则抽取，无需 READ_SMS；
   `READ_SMS` 属敏感权限，仅在确有需要时申请。
 - **UI 自动化**：AccessibilityService 实现点击/读取界面，需明确开关与可见提示。
 

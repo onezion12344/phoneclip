@@ -25,14 +25,17 @@ final class Jobs {
         return c.getTimeInMillis() / 1000;
     }
 
-    static void photoVlm(Context ctx) {
+    static void photoVlm(Context ctx, boolean force) {
         try {
-            long since = Config.lastVlmRun(ctx);
+            long since = force ? 0 : Config.lastVlmRun(ctx);
+            android.util.Log.i(TAG, "photo vlm: since=" + since);
             Media.Photo p = Media.newestPhoto(ctx, since, true);
+            android.util.Log.i(TAG, "photo vlm: photo=" + (p == null ? "none" : p.name));
             if (p == null) return;
             byte[] jpeg = Media.jpegFromUri(ctx, p.uri, 1280, 85);
             String text = Vision.observe(ctx, jpeg,
                     "文件名 " + p.name + "，入库时间 " + p.dateAdded);
+            android.util.Log.i(TAG, "photo vlm: text=" + text.length() + " ch");
             if (text.isEmpty()) return;
             String name = "obs-" + p.name.replaceAll("[^A-Za-z0-9._-]", "_") + ".txt";
             Transcription.saveToDownloads(ctx, name, text);
