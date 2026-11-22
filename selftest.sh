@@ -9,6 +9,13 @@ APP="$HOME/Library/Application Support/PhoneClip"
 PKG=ai.onezion.phoneclip
 PORT=47600
 
+command -v ffmpeg >/dev/null || { echo "ffmpeg missing"; exit 1; }
+command -v ffprobe >/dev/null || { echo "ffprobe missing"; exit 1; }
+if /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null | grep -q enabled; then
+  echo "note: macOS firewall is ON; if the transcription test times out, allow python3"
+  echo "      (System Settings → Network → Firewall → Options) or use Tailscale serve."
+fi
+
 SERIAL=${1:-$(adb devices | awk 'NR>1 && $2=="device"{print $1; exit}')}
 if [ -z "$SERIAL" ]; then
   echo "no device. enable wireless debugging (or plug USB), then re-run."
@@ -38,6 +45,13 @@ echo "device $SERIAL  url $URL"
 "${ADB[@]}" shell pm grant $PKG android.permission.POST_NOTIFICATIONS 2>/dev/null || true
 "${ADB[@]}" shell appops set $PKG MANAGE_EXTERNAL_STORAGE allow 2>/dev/null || true
 "${ADB[@]}" shell dumpsys deviceidle whitelist +$PKG >/dev/null 2>&1 || true
+if ! "${ADB[@]}" shell appops get $PKG MANAGE_EXTERNAL_STORAGE 2>/dev/null | grep -q allow; then
+  echo "!! 所有文件访问未开启，Sidecar/压缩测试无法通过。"
+  echo "   正在打开设置页，请手动允许 OneZion Clip："
+  "${ADB[@]}" shell am start -a android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION \
+    -d package:$PKG >/dev/null 2>&1 || true
+  exit 1
+fi
 "${ADB[@]}" shell am start -n $PKG/.MainActivity \
   --es server "$URL" --es token "$TOKEN" --ez start true >/dev/null
 
@@ -73,10 +87,13 @@ class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 http.server.HTTPServer(("0.0.0.0", 47600), H).serve_forever()
 PY
+lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1 && { echo "port $PORT busy"; exit 1; }
 python3 /tmp/mock_transcribe.py > /tmp/mock_transcribe.log 2>&1 &
 MOCK=$!
 trap 'kill $MOCK 2>/dev/null || true' EXIT
 sleep 1
+curl -s -m 3 -X POST --data-binary x http://127.0.0.1:$PORT/v1/audio/transcriptions | grep -q mock \
+  || { echo "mock transcription server not answering locally"; exit 1; }
 if [ "$(reachable "$PHONE_IP")" = "0" ]; then
   "${ADB[@]}" shell am start -n $PKG/.MainActivity \
     --es tbase "http://$PHONE_IP:$PORT" --es tkey mock --es tmodel mock --ez tsync true >/dev/null
