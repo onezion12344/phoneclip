@@ -96,6 +96,8 @@ gh release create v1.4.0 build/PhoneClip.apk \
   --title "PhoneClip 1.4.0" --notes "..."
 ```
 
+真机自测（侧车 / 转写 / 压缩）：`./selftest.sh [adb-serial]`（手机会被自动安装、配置并跑三项断言）。
+
 手机端 24 小时内自动发现新版本；签名固定用同一把 debug keystore（`~/.android/debug.keystore`），换签名会导致覆盖安装失败。
 
 ## 资源占用（OnePlus Ace 3 Pro 实测）
