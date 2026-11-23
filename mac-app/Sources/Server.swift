@@ -89,6 +89,7 @@ final class PhoneClipServer {
     let rootDir: String
     let photosDir: String
     let filesDir: String
+    let album: AlbumIndex
     let cacheDir: String
     let bridge = ClipboardBridge()
 
@@ -139,6 +140,14 @@ final class PhoneClipServer {
     var onStateChange: (() -> Void)?
 
     // MARK: sidecar
+
+    /// Ask the phone to walk a folder and upload thumbnails for local indexing.
+    func indexAlbum(path: String = "/sdcard/DCIM/Camera") {
+        listPhone(path: path) { _ in }
+        enqueue(op: "album", path: path) { [weak self] res in
+            self?.logLine("album: index \(path) → \(res)")
+        }
+    }
 
     func listPhone(path: String, completion: @escaping ([String: Any]) -> Void) {
         queue.async { self.enqueue(op: "list", path: path, completion: completion) }
@@ -208,6 +217,7 @@ final class PhoneClipServer {
                   NSHomeDirectory() + "/Pictures/PhoneClip"] {
             try? FileManager.default.createDirectory(atPath: d, withIntermediateDirectories: true)
         }
+        album = AlbumIndex(rootDir: rootDir)
         loadConfig()
         if let p = portOverride, p > 0 {
             var c = config
@@ -508,6 +518,25 @@ final class PhoneClipServer {
             handleClipImage(conn)
         case ("POST", "/v1/sidecar/result"):
             handleSidecarResult(req, conn)
+        case ("GET", "/v1/album/search"):
+            let q = req.query["q"] ?? ""
+            let limit = min(Int(req.query["limit"] ?? "40") ?? 40, 200)
+            let hits = album.search(q, limit: limit)
+            respondJSON(conn, ["ok": true, "query": q, "count": hits.count,
+                               "results": hits.map { e -> [String: Any] in
+                ["path": e.path, "name": e.name, "text": e.text,
+                 "labels": e.labels, "faces": e.faces,
+                 "width": e.width, "height": e.height]
+            }])
+        case ("GET", "/v1/album/stats"):
+            respondJSON(conn, ["ok": true, "indexed": album.count])
+        case ("POST", "/v1/album/index"):
+            let path = req.query["path"] ?? "/sdcard/DCIM/Camera"
+            listPhone(path: path) { _ in }
+            enqueue(op: "album", path: path) { [weak self] res in
+                self?.logLine("album: index \(path) → \(res)")
+            }
+            respondJSON(conn, ["ok": true, "started": true])
         case ("GET", "/v1/sidecar/probe"):
             let path = req.query["path"] ?? "/sdcard"
             listPhone(path: path) { [weak self] res in
@@ -550,7 +579,8 @@ final class PhoneClipServer {
         var name = saneName(req.query["name"] ?? "")
         if name.isEmpty { name = "file" }
         let bucket = req.query["dir"] ?? ""
-        let destDir = bucket == "transcripts" ? transcriptDir : filesDir
+        let destDir = bucket == "transcripts" ? transcriptDir
+            : (bucket == "album" ? rootDir + "/album/thumbs" : filesDir)
         try? FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true)
         let path = uniquePath(destDir + "/" + name)
         guard (try? req.body.write(to: URL(fileURLWithPath: path))) != nil else {
@@ -562,6 +592,14 @@ final class PhoneClipServer {
         let idx = Int(req.query["i"] ?? "0") ?? 0
         if total > 200 || idx < 0 || (total > 0 && idx >= total) {
             respond(conn, status: 400, body: Data("bad batch".utf8))
+            return
+        }
+        if bucket == "album" {
+            let src = req.query["src"] ?? ""
+            if !src.isEmpty {
+                album.ingest(thumbPath: path, src: src)
+            }
+            respond(conn, status: 200, body: Data("ok".utf8))
             return
         }
         if (req.query["silent"] ?? "") == "1" {

@@ -67,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add(menu, "打开照片文件夹", #selector(openPhotos))
         add(menu, "打开文件文件夹", #selector(openFiles))
         add(menu, "手机文件…", #selector(openBrowser))
+        add(menu, "索引手机相册（本机 AI）", #selector(indexAlbum))
         add(menu, "打开转录文件夹", #selector(openTranscripts))
         menu.addItem(.separator())
         add(menu, "偏好设置…", #selector(openPrefs))
@@ -108,6 +109,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openBrowser() {
         if browser == nil { browser = PhoneBrowserController(server: server) }
         browser?.show()
+    }
+
+    @objc private func indexAlbum() {
+        server.indexAlbum()
+        Toast.show("相册索引", "正在从手机取缩略图，索引在后台进行")
     }
 
     @objc private func openTranscripts() {

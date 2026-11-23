@@ -47,6 +47,20 @@ owner 目标：先把「连接侧」打通，并具备一些 ADB 能力。
 3. Mac 端「连接手机」按钮：自动 `adb connect`（Tailscale 地址），失败时提示配对。
 4. 无线调试配对引导页（把 IP:端口、六位码的获取步骤内置到 App）。
 
+## 相册 AI 搜索（1.4.27 已做）
+
+**ColorOS 的相册 AI 搜索没有对外 API**（2026-11 查证：它是 Gallery 内置能力，第三方无法调用），
+所以采用「手机出缩略图 + Mac 本机索引」：
+
+- 手机：`cmd op=album` 遍历目录，生成 512px JPEG 上传到 `dir=album&src=<原路径>`；
+- Mac：`AlbumIndex` 用系统 Vision（`VNRecognizeTextRequest` 中英、`VNClassifyImageRequest`、
+  `VNDetectFaceRectanglesRequest`）分析每张缩略图，写入 `~/Library/Application Support/PhoneClip/album/index.json`；
+- 查询：`GET /v1/album/search?q=...`（token 鉴权，返回原图路径、OCR 文本、标签、人脸数）；
+  中文查询经同义词表映射到 Vision 的英文标签（海边→beach/sea/ocean…）；
+- 其它 agent 直接 HTTP 调用即可，不需要知道手机。
+
+后续：CLIP 向量做语义近似；人脸 embedding 聚类认人（当前只统计人脸数）。
+
 ## 未来功能（已记录，暂不实现）
 
 - **文件访问 / 系统能力**：优先走 OPPO/ColorOS 原生 API 与 SAF，

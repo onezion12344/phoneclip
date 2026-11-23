@@ -206,6 +206,26 @@ def main():
         if os.path.exists(big):
             os.remove(big)
 
+        # --- album index (Vision runs on the Mac; here we check the plumbing)
+        thumb = os.path.join(tmp, "beach-test.jpg")
+        try:
+            from PIL import Image
+            Image.new("RGB", (256, 192), (90, 150, 210)).save(thumb)
+        except Exception:
+            thumb = None
+        if thumb:
+            with open(thumb, "rb") as fh:
+                st, _ = req("POST", "/v1/file?name=beach-test.jpg&silent=1&dir=album"
+                            "&src=/sdcard/DCIM/Camera/beach-test.jpg", token,
+                            fh.read(), ctype="image/jpeg")
+            check("album thumbnail accepted", st == 200, st)
+            wait_for(lambda: json.loads(req("GET", "/v1/album/stats", token)[1] or b"{}")
+                     .get("indexed", 0) >= 1, 20)
+            st, body = req("GET", "/v1/album/search?q=beach", token)
+            hits = json.loads(body).get("results", []) if st == 200 else []
+            check("album search finds the thumbnail",
+                  st == 200 and any("beach-test" in h.get("path", "") for h in hits), body[:120])
+
         # --- the real phone-side transport (Http.java), not a Python stand-in
         jar = sorted(glob.glob(
             "/opt/homebrew/share/android-commandlinetools/platforms/android-*/android.jar"))

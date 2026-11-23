@@ -35,6 +35,9 @@ app binary makes the release exit 1 with the manifest untouched.
   **without** bumping rev so the phone does not re-apply its own write.
 - Shared config: `~/Library/Application Support/PhoneClip/config.json` (token, port).
 - Sidecar is confined to `/storage/emulated/0`; `Android/data` and `Android/obb` are hidden.
+- Album search: phone uploads 512px thumbs (`dir=album&src=`), Mac indexes them with system
+  Vision into `rootDir/album/index.json`; query with `GET /v1/album/search?q=`. Vision cannot
+  identify people, only count faces.
 
 ## Hard constraints (measured, don't re-learn)
 - Android 13+ forbids background clipboard **reads**; ColorOS 16 rejects overlay,

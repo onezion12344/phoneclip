@@ -35,6 +35,14 @@ Channel: the phone long-polls the Mac over Tailscale or LAN. No cloud service; t
 - `am start --es key ""` drops the empty string and stores the next flag as the value — the app rejects flag-shaped values.
 - The Mac app is ad-hoc signed: `open` fails from sandboxed shells (-10825); the LaunchAgent is the reliable start path.
 
+## Album search for other agents
+
+`GET /v1/album/search?q=海边&limit=40` (token header) returns `{results:[{path,name,text,labels,faces,width,height}]}`.
+The index is built on the Mac with system Vision from 512px thumbnails; trigger it with the menu
+「索引手机相册（本机 AI）」 or `POST /v1/album/index?path=/sdcard/DCIM/Camera`. Chinese queries are mapped
+onto Vision's English labels by a small synonym table in `AlbumIndex.swift`. ColorOS exposes no public
+gallery-search API (verified 2026-11), so this local index is the supported path.
+
 ## References
 
 - `docs/roadmap.md` — deferred features (SMS via NotificationListenerService, Accessibility automation, OPPO APIs, Personal Wiki writing) with the constraints decided for each.

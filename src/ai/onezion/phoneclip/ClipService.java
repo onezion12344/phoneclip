@@ -385,6 +385,26 @@ public class ClipService extends Service {
                 res.put("name", f.getName());
                 res.put("size", f.length());
                 postResult(id, res);
+            } else if ("album".equals(op)) {
+                int n = albumUpload(path, cmd.optInt("max", 200));
+                JSONObject res = new JSONObject();
+                res.put("ok", true);
+                res.put("count", n);
+                postResult(id, res);
+            } else if ("thumb".equals(op)) {
+                File f = new File(path);
+                if (!f.isFile() || !allowedPath(f)) throw new Exception("not a file");
+                byte[] jpeg = Media.jpegFromFile(f, 512, 70);
+                String name = Media.sha1(jpeg) + ".jpg";
+                String url = Config.server(this) + "/v1/file?name=" + name
+                        + "&silent=1&dir=album&src="
+                        + URLEncoder.encode(f.getAbsolutePath(), "UTF-8");
+                Http.post(url, Config.token(this), "image/jpeg", jpeg);
+                JSONObject res = new JSONObject();
+                res.put("ok", true);
+                res.put("name", f.getName());
+                res.put("thumb", name);
+                postResult(id, res);
             } else {
                 JSONObject res = new JSONObject();
                 res.put("ok", false);
@@ -399,6 +419,33 @@ public class ClipService extends Service {
                 postResult(id, res);
             } catch (Exception ignored) {}
         }
+    }
+
+    /** Walk one folder, upload small thumbnails; the Mac indexes each one as it lands. */
+    private int albumUpload(String path, int max) throws Exception {
+        File dir = new File(path.isEmpty() ? "/sdcard/DCIM/Camera" : path);
+        if (!dir.isDirectory() || !allowedPath(dir)) throw new Exception("denied");
+        File[] files = dir.listFiles();
+        if (files == null) return 0;
+        java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        int sent = 0;
+        for (File f : files) {
+            if (sent >= max) break;
+            if (!f.isFile() || f.length() == 0) continue;
+            if (!isImageUri(this, Uri.fromFile(f))) continue;
+            try {
+                byte[] jpeg = Media.jpegFromFile(f, 512, 70);
+                String name = Media.sha1(jpeg) + ".jpg";
+                String url = Config.server(this) + "/v1/file?name=" + name
+                        + "&silent=1&dir=album&src="
+                        + URLEncoder.encode(f.getAbsolutePath(), "UTF-8");
+                Http.post(url, Config.token(this), "image/jpeg", jpeg);
+                sent++;
+            } catch (Exception e) {
+                Log.w(TAG, "album thumb: " + f.getName(), e);
+            }
+        }
+        return sent;
     }
 
     private JSONObject listDir(String path) throws Exception {
